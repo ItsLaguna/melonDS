@@ -53,7 +53,7 @@ static const QString kToolBarStyle = QStringLiteral(R"(
         color: palette(button-text);
         min-width: 80px;
     }
-    QComboBox:hover { border-color: palette(shadow); }
+    QComboBox:hover { border-color: palette(highlight); }
     QComboBox::drop-down { border: none; width: 16px; }
     QComboBox::down-arrow {
         image: none;
@@ -62,6 +62,14 @@ static const QString kToolBarStyle = QStringLiteral(R"(
         border-top: 5px solid palette(button-text);
         width: 0; height: 0;
         margin-right: 4px;
+    }
+    QComboBox QAbstractItemView {
+        background: palette(window);
+        color: palette(window-text);
+        border: 1px solid palette(mid);
+        selection-background-color: palette(highlight);
+        selection-color: palette(highlighted-text);
+        outline: none;
     }
     QLineEdit {
         border: 1px solid palette(mid);
@@ -74,10 +82,11 @@ static const QString kToolBarStyle = QStringLiteral(R"(
     }
     QLineEdit:focus { border-color: palette(highlight); }
     QFrame#tbSep {
-        color: palette(mid);
+        background: palette(mid);
         max-width: 1px;
         min-width: 1px;
-        margin: 5px 4px;
+        margin: 6px 4px;
+        border: none;
     }
     QSlider::groove:horizontal {
         height: 4px;
@@ -100,8 +109,8 @@ static QFrame* makeSep()
 {
     auto* f = new QFrame;
     f->setObjectName("tbSep");
-    f->setFrameShape(QFrame::VLine);
-    f->setFrameShadow(QFrame::Plain);
+    f->setFrameShape(QFrame::NoFrame);
+    f->setFixedWidth(1);
     return f;
 }
 
