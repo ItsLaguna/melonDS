@@ -27,6 +27,7 @@
 #include <QApplication>
 #include <QStyle>
 #include <QMessageBox>
+#include <QPalette>
 #include <QMenuBar>
 #include <QFileDialog>
 #include <QInputDialog>
@@ -350,7 +351,41 @@ int main(int argc, char** argv)
         QString uitheme = cfg.GetQString("UITheme");
         if (!uitheme.isEmpty())
         {
-            QApplication::setStyle(uitheme);
+            if (uitheme.compare("dark", Qt::CaseInsensitive) == 0)
+            {
+                // Built-in dark theme — Fusion + dark palette
+                QApplication::setStyle("fusion");
+                QPalette dark;
+                dark.setColor(QPalette::Window,          QColor(0x31, 0x36, 0x3b));
+                dark.setColor(QPalette::WindowText,      QColor(0xfc, 0xfc, 0xfc));
+                dark.setColor(QPalette::Base,            QColor(0x1b, 0x1e, 0x20));
+                dark.setColor(QPalette::AlternateBase,   QColor(0x31, 0x36, 0x3b));
+                dark.setColor(QPalette::ToolTipBase,     QColor(0x31, 0x36, 0x3b));
+                dark.setColor(QPalette::ToolTipText,     QColor(0xfc, 0xfc, 0xfc));
+                dark.setColor(QPalette::Text,            QColor(0xfc, 0xfc, 0xfc));
+                dark.setColor(QPalette::BrightText,      QColor(0xff, 0xff, 0xff));
+                dark.setColor(QPalette::Button,          QColor(0x3b, 0x41, 0x47));
+                dark.setColor(QPalette::ButtonText,      QColor(0xfc, 0xfc, 0xfc));
+                dark.setColor(QPalette::Light,           QColor(0x48, 0x4e, 0x55));
+                dark.setColor(QPalette::Midlight,        QColor(0x3f, 0x45, 0x4b));
+                dark.setColor(QPalette::Mid,             QColor(0x2d, 0x32, 0x36));
+                dark.setColor(QPalette::Dark,            QColor(0x1b, 0x1e, 0x20));
+                dark.setColor(QPalette::Shadow,          QColor(0x0e, 0x10, 0x11));
+                dark.setColor(QPalette::Highlight,       QColor(0x29, 0x80, 0xb9));
+                dark.setColor(QPalette::HighlightedText, QColor(0xfc, 0xfc, 0xfc));
+                dark.setColor(QPalette::Link,            QColor(0x29, 0x80, 0xb9));
+                dark.setColor(QPalette::LinkVisited,     QColor(0x7f, 0x8c, 0x8d));
+                dark.setColor(QPalette::Disabled, QPalette::WindowText,      QColor(0x6e, 0x74, 0x7a));
+                dark.setColor(QPalette::Disabled, QPalette::Text,            QColor(0x6e, 0x74, 0x7a));
+                dark.setColor(QPalette::Disabled, QPalette::ButtonText,      QColor(0x6e, 0x74, 0x7a));
+                dark.setColor(QPalette::Disabled, QPalette::Highlight,       QColor(0x3b, 0x41, 0x47));
+                dark.setColor(QPalette::Disabled, QPalette::HighlightedText, QColor(0x6e, 0x74, 0x7a));
+                QApplication::setPalette(dark);
+            }
+            else
+            {
+                QApplication::setStyle(uitheme);
+            }
         }
     }
 

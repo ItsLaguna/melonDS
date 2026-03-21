@@ -17,6 +17,7 @@
 */
 
 #include <QStyleFactory>
+#include <QPalette>
 #include "InterfaceSettingsDialog.h"
 #include "ui_InterfaceSettingsDialog.h"
 
@@ -24,6 +25,38 @@
 #include "Platform.h"
 #include "Config.h"
 #include "main.h"
+
+// Shared helper — same palette used in main.cpp on startup
+static void applyDarkPalette()
+{
+    qApp->setStyle("fusion");
+    QPalette dark;
+    dark.setColor(QPalette::Window,          QColor(0x31, 0x36, 0x3b));
+    dark.setColor(QPalette::WindowText,      QColor(0xfc, 0xfc, 0xfc));
+    dark.setColor(QPalette::Base,            QColor(0x1b, 0x1e, 0x20));
+    dark.setColor(QPalette::AlternateBase,   QColor(0x31, 0x36, 0x3b));
+    dark.setColor(QPalette::ToolTipBase,     QColor(0x31, 0x36, 0x3b));
+    dark.setColor(QPalette::ToolTipText,     QColor(0xfc, 0xfc, 0xfc));
+    dark.setColor(QPalette::Text,            QColor(0xfc, 0xfc, 0xfc));
+    dark.setColor(QPalette::BrightText,      QColor(0xff, 0xff, 0xff));
+    dark.setColor(QPalette::Button,          QColor(0x3b, 0x41, 0x47));
+    dark.setColor(QPalette::ButtonText,      QColor(0xfc, 0xfc, 0xfc));
+    dark.setColor(QPalette::Light,           QColor(0x48, 0x4e, 0x55));
+    dark.setColor(QPalette::Midlight,        QColor(0x3f, 0x45, 0x4b));
+    dark.setColor(QPalette::Mid,             QColor(0x2d, 0x32, 0x36));
+    dark.setColor(QPalette::Dark,            QColor(0x1b, 0x1e, 0x20));
+    dark.setColor(QPalette::Shadow,          QColor(0x0e, 0x10, 0x11));
+    dark.setColor(QPalette::Highlight,       QColor(0x29, 0x80, 0xb9));
+    dark.setColor(QPalette::HighlightedText, QColor(0xfc, 0xfc, 0xfc));
+    dark.setColor(QPalette::Link,            QColor(0x29, 0x80, 0xb9));
+    dark.setColor(QPalette::LinkVisited,     QColor(0x7f, 0x8c, 0x8d));
+    dark.setColor(QPalette::Disabled, QPalette::WindowText,      QColor(0x6e, 0x74, 0x7a));
+    dark.setColor(QPalette::Disabled, QPalette::Text,            QColor(0x6e, 0x74, 0x7a));
+    dark.setColor(QPalette::Disabled, QPalette::ButtonText,      QColor(0x6e, 0x74, 0x7a));
+    dark.setColor(QPalette::Disabled, QPalette::Highlight,       QColor(0x3b, 0x41, 0x47));
+    dark.setColor(QPalette::Disabled, QPalette::HighlightedText, QColor(0x6e, 0x74, 0x7a));
+    qApp->setPalette(dark);
+}
 
 InterfaceSettingsDialog* InterfaceSettingsDialog::currentDlg = nullptr;
 InterfaceSettingsDialog::InterfaceSettingsDialog(QWidget* parent) : QDialog(parent), ui(new Ui::InterfaceSettingsDialog)
@@ -49,12 +82,16 @@ InterfaceSettingsDialog::InterfaceSettingsDialog(QWidget* parent) : QDialog(pare
     QString cfgTheme = cfg.GetQString("UITheme");
 
     ui->cbxUITheme->addItem("System default", "");
+    ui->cbxUITheme->addItem("Dark", "dark");
+    if (cfgTheme == "dark")
+        ui->cbxUITheme->setCurrentIndex(1);
 
     for (int i = 0; i < themeKeys.length(); i++)
     {
         ui->cbxUITheme->addItem(themeKeys[i], themeKeys[i]);
-        if (!cfgTheme.isEmpty() && themeKeys[i].compare(currentTheme, Qt::CaseInsensitive) == 0)
-            ui->cbxUITheme->setCurrentIndex(i + 1);
+        if (!cfgTheme.isEmpty() && cfgTheme != "dark"
+                && themeKeys[i].compare(currentTheme, Qt::CaseInsensitive) == 0)
+            ui->cbxUITheme->setCurrentIndex(i + 2); // +2 to account for the extra Breeze Dark entry
     }
 }
 
@@ -138,10 +175,20 @@ void InterfaceSettingsDialog::done(int r)
 
         Config::Save();
 
-        if (!themeName.isEmpty())
+        if (themeName == "dark")
+        {
+            applyDarkPalette();
+        }
+        else if (!themeName.isEmpty())
+        {
+            qApp->setPalette(QApplication::style()->standardPalette());
             qApp->setStyle(themeName);
+        }
         else
+        {
+            qApp->setPalette(QApplication::style()->standardPalette());
             qApp->setStyle(*systemThemeName);
+        }
 
         emit updateInterfaceSettings();
     }

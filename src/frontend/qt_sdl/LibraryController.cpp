@@ -68,10 +68,14 @@ LibraryBackground::LibraryBackground(QWidget* content, QWidget* parent)
 
 void LibraryBackground::paintEvent(QPaintEvent*)
 {
-    if (m_logo.isNull()) return;
     QPainter p(this);
     p.setRenderHint(QPainter::SmoothPixmapTransform);
-    const int maxDim = qMin(width(), height()) * 2 / 5;
+
+    // Fill with the window background color so the palette is respected
+    p.fillRect(rect(), palette().color(QPalette::Base));
+
+    if (m_logo.isNull()) return;
+    const int maxDim = qMin(width(), height()) * 3 / 5;
     const QPixmap scaled = m_logo.scaled(maxDim, maxDim,
                                           Qt::KeepAspectRatio,
                                           Qt::SmoothTransformation);
@@ -130,7 +134,8 @@ LibraryController::LibraryController(MainWindow* mainWindow,
     m_listView->setIconSize(QSize(24, 24));
     m_listView->header()->setSectionsMovable(true);
     m_listView->header()->setContextMenuPolicy(Qt::CustomContextMenu);
-    m_listView->setStyleSheet("QTreeView { background: transparent; }");
+    m_listView->setAutoFillBackground(false);
+    m_listView->viewport()->setAutoFillBackground(false);
     connect(m_listView->header(), &QHeaderView::customContextMenuRequested,
             this, &LibraryController::onHeaderContextMenu);
 
@@ -151,7 +156,8 @@ LibraryController::LibraryController(MainWindow* mainWindow,
     m_gridView->setItemDelegate(m_gridDelegate);
     m_gridView->setGridSize(m_gridDelegate->cardSize());
     m_gridView->setModel(m_proxyModel);
-    m_gridView->setStyleSheet("QListView { background: transparent; }");
+    m_gridView->setAutoFillBackground(false);
+    m_gridView->viewport()->setAutoFillBackground(false);
     m_gridView->viewport()->installEventFilter(this);
 
     auto* gridBg = new LibraryBackground(m_gridView, m_viewStack);
@@ -325,6 +331,12 @@ void LibraryController::restoreColumnVisibility()
 
     // COL_NAME must always be visible regardless of saved state
     m_listView->setColumnHidden(melonds::LibraryModel::COL_NAME, false);
+
+    // restoreState() restores the visual sort indicator but does NOT
+    // re-sort the proxy model — do that explicitly
+    const int sortCol   = m_listView->header()->sortIndicatorSection();
+    const Qt::SortOrder sortOrder = m_listView->header()->sortIndicatorOrder();
+    m_proxyModel->sort(sortCol, sortOrder);
 }
 
 // Save whenever the user resizes or reorders columns
@@ -334,6 +346,8 @@ void LibraryController::connectHeaderSave()
             this, [this](int, int, int) { saveColumnVisibility(); });
     connect(m_listView->header(), &QHeaderView::sectionMoved,
             this, [this](int, int, int) { saveColumnVisibility(); });
+    connect(m_listView->header(), &QHeaderView::sortIndicatorChanged,
+            this, [this](int, Qt::SortOrder) { saveColumnVisibility(); });
 }
 
 void LibraryController::onHeaderContextMenu(const QPoint& pos)
