@@ -180,8 +180,15 @@ void broadcastInstanceCommand(int cmd, QVariant& param, int sourceinst)
 
 void pathInit()
 {
-    // First, check for the portable directory next to the executable.
-    QString appdirpath = QCoreApplication::applicationDirPath();
+    // When running inside an AppImage, $APPIMAGE is set to the actual .AppImage
+    // file path. Use its parent directory so portable/ is found next to it.
+    QString appdirpath;
+    const QString appImagePath = qEnvironmentVariable("APPIMAGE");
+    if (!appImagePath.isEmpty())
+        appdirpath = QFileInfo(appImagePath).absolutePath();
+    else
+        appdirpath = QCoreApplication::applicationDirPath();
+
     QString portablepath = appdirpath + QDir::separator() + "portable";
 
 #if defined(__APPLE__)
@@ -195,8 +202,11 @@ void pathInit()
 #endif
 
     QDir portabledir(portablepath);
-    if (portabledir.exists())
+    if (portabledir.exists() || QFile::exists(appdirpath + QDir::separator() + "portable.ini"))
     {
+        // Create the portable directory if triggered by portable.ini
+        if (!portabledir.exists())
+            QDir().mkpath(portablepath);
         emuDirectory = portabledir.absolutePath();
     }
     else
