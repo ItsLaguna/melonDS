@@ -145,11 +145,18 @@ void LibraryGridDelegate::paint(QPainter* painter,
     // ---- Title row -------------------------------------------------------
     const QRect titleRect(r.left(), r.top() + r.height() - 40, r.width(), 40);
 
+    // Semi-transparent dark overlay — readable on any background/theme
+    QColor titleBg = selected
+        ? option.palette.color(QPalette::Highlight).darker(130)
+        : QColor(0, 0, 0, 180);
+    painter->fillRect(titleRect, titleBg);
+
     QFont tf = option.font;
     tf.setPixelSize(11);
     painter->setFont(tf);
+    // Always white text over the dark overlay, except when system says otherwise
     painter->setPen(selected ? option.palette.color(QPalette::HighlightedText)
-                             : option.palette.color(QPalette::Text));
+                             : Qt::white);
 
     const QFontMetrics tfm(tf);
     const QString elidedTitle = tfm.elidedText(displayName, Qt::ElideRight, titleRect.width() - 8);
