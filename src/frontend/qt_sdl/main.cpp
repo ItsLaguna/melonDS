@@ -182,14 +182,14 @@ void pathInit()
 {
     // When running inside an AppImage, $APPIMAGE is set to the actual .AppImage
     // file path. Use its parent directory so portable/ is found next to it.
-    QString appdirpath;
-    const QString appImagePath = qEnvironmentVariable("APPIMAGE");
-    if (!appImagePath.isEmpty())
-        appdirpath = QFileInfo(appImagePath).absolutePath();
-    else
-        appdirpath = QCoreApplication::applicationDirPath();
+    const QString appdirpath = QCoreApplication::applicationDirPath();
 
-    QString portablepath = appdirpath + QDir::separator() + "portable";
+    const QString appImagePath = qEnvironmentVariable("APPIMAGE");
+    const QString portableBase = !appImagePath.isEmpty()
+        ? QFileInfo(appImagePath).absolutePath()
+        : appdirpath;
+
+    QString portablepath = portableBase + QDir::separator() + "portable";
 
 #if defined(__APPLE__)
     // On Apple platforms we may need to navigate outside an app bundle.
@@ -202,11 +202,8 @@ void pathInit()
 #endif
 
     QDir portabledir(portablepath);
-    if (portabledir.exists() || QFile::exists(appdirpath + QDir::separator() + "portable.ini"))
+    if (portabledir.exists())
     {
-        // Create the portable directory if triggered by portable.ini
-        if (!portabledir.exists())
-            QDir().mkpath(portablepath);
         emuDirectory = portabledir.absolutePath();
     }
     else
