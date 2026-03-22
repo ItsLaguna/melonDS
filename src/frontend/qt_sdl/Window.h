@@ -30,9 +30,13 @@
 #include <QActionGroup>
 #include <QTimer>
 #include <QMutex>
+#include <QPointer>
+#include <QStackedWidget>
+#include <QVBoxLayout>
 #include <QScreen>
 #include <QCloseEvent>
-#include <QStackedWidget>
+
+#include <atomic>
 
 #include "Screen.h"
 #include "Config.h"
@@ -72,6 +76,13 @@ public:
     void releaseGL();
 
     void drawScreen();
+
+    // Called after initContext succeeds to insert the panel into the stack and show it.
+    void showScreenPanel();
+    // Called on emu stop to remove and destroy the panel, returning to the library page.
+    void destroyScreenPanel();
+    // Called before every bootROM — ensures panel + GL context are fresh and ready.
+    void prepareScreenForBoot();
 
     bool preloadROMs(QStringList file, QStringList gbafile, bool boot);
     QStringList splitArchivePath(const QString& filename, bool useMemberSyntax);
@@ -232,6 +243,22 @@ public:
     ScreenPanel* panel;
 
     bool hasMenu;
+    bool m_pendingLibrarySwitch = false;
+    // Written on UI thread, read on emu thread — must be atomic.
+    std::atomic<bool> m_libraryVisible {true};
+
+    // Accessed directly by EmuThread and EmuInstance
+    QAction* actQuit;
+    QAction* actStop;
+    QAction* actLimitFramerate;
+    QAction* actScreenSwap;
+    QAction* actNewWindow;
+    QAction* actPause;
+    QAction* actReset;
+    QAction* actFrameStep;
+
+protected:
+    void resizeEvent(QResizeEvent* event) override;
 
     QAction* actOpenROM;
     QAction* actAddLibraryFolder;
@@ -248,12 +275,7 @@ public:
     QAction* actLoadState[9];
     QAction* actUndoStateLoad;
     QAction* actOpenConfig;
-    QAction* actQuit;
 
-    QAction* actPause;
-    QAction* actReset;
-    QAction* actStop;
-    QAction* actFrameStep;
     QAction* actPowerManagement;
     QAction* actDateTime;
     QAction* actEnableCheats;
@@ -288,7 +310,6 @@ public:
     QAction* actScreenGap[6];
     QActionGroup* grpScreenLayout;
     QAction* actScreenLayout[screenLayout_MAX];
-    QAction* actScreenSwap;
     QActionGroup* grpScreenSizing;
     QAction* actScreenSizing[screenSizing_MAX];
     QAction* actIntegerScaling;
@@ -296,16 +317,14 @@ public:
     QAction** actScreenAspectTop;
     QActionGroup* grpScreenAspectBot;
     QAction** actScreenAspectBot;
-    QAction* actNewWindow;
     QAction* actScreenFiltering;
     QAction* actShowOSD;
-    QAction* actLimitFramerate;
     QAction* actAudioSync;
 
     QAction* actAbout;
 
     // Game library — shown as background when no game is running
-    QStackedWidget*    m_viewStack = nullptr;
+    QStackedWidget*    m_panelContainer = nullptr;
     LibraryController* m_library   = nullptr;
 };
 

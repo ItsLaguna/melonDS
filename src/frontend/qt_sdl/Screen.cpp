@@ -883,16 +883,17 @@ ScreenPanelGL::~ScreenPanelGL()
 
 bool ScreenPanelGL::createContext()
 {
+    setAttribute(Qt::WA_NativeWindow, true);
+    ensurePolished();
+    winId(); // force native handle creation
+
     std::optional<WindowInfo> windowinfo = getWindowInfo();
 
-    // if our parent window is parented to another window, we will
-    // share our OpenGL context with that window
-    MainWindow* ourwin = (MainWindow*)parentWidget();
-    MainWindow* parentwin = (MainWindow*)parentWidget()->parentWidget();
-    //if (parentwin)
-    if (ourwin->getWindowID() != 0)
+    MainWindow* ourwin = mainWindow;
+    MainWindow* parentwin = ourwin ? qobject_cast<MainWindow*>(ourwin->parentWidget()) : nullptr;
+    if (ourwin && ourwin->getWindowID() != 0)
     {
-        if (windowinfo.has_value())
+        if (windowinfo.has_value() && parentwin)
             if ((glContext = parentwin->getOGLContext()->CreateSharedContext(*windowinfo)))
                 glContext->DoneCurrent();
     }
@@ -1020,7 +1021,9 @@ void ScreenPanelGL::initOpenGL()
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, logo.width(), logo.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, logo.bits());
     logoTexture = tex;
 
-    transferLayout();
+    // transferLayout() is NOT called here — initOpenGL() runs on the emu thread
+    // and width()/height() on QWidget is not thread-safe. transferLayout() is
+    // called from showScreenPanel() on the UI thread after initContext() returns.
     glInited = true;
 }
 
@@ -1324,7 +1327,15 @@ std::optional<WindowInfo> ScreenPanelGL::getWindowInfo()
     else if (platform_name == QStringLiteral("wayland"))
     {
         wi.type = WindowInfo::Type::Wayland;
+        // Ensure the native window exists (may be non-current in a QStackedWidget)
+        setAttribute(Qt::WA_NativeWindow, true);
         QWindow* handle = windowHandle();
+        if (handle == nullptr)
+        {
+            // Force native window creation and try again
+            winId();
+            handle = windowHandle();
+        }
         if (handle == nullptr)
             return std::nullopt;
 
@@ -1361,6 +1372,7 @@ void ScreenPanelGL::setupScreenLayout()
 void ScreenPanelGL::transferLayout()
 {
     std::optional<WindowInfo> windowInfo = getWindowInfo();
+
     if (windowInfo.has_value())
     {
         screenSettingsLock.lock();
