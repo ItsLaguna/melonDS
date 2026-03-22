@@ -18,6 +18,9 @@
 
 #include "NDS.h"
 #include <stdlib.h>
+#include <QTimer>
+#include <QResizeEvent>
+#include <QVBoxLayout>
 #include <time.h>
 #include <stdio.h>
 #include <string.h>
@@ -852,32 +855,42 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 void MainWindow::createScreenPanel()
 {
-    auto oldpanel = panel;
-    panel = nullptr;
-    if (oldpanel) delete oldpanel;
+    // Destroy any existing panel first (removes from stack if present).
+    destroyScreenPanel();
+
+    if (!m_panelContainer)
+    {
+        m_panelContainer = new QStackedWidget(this);
+        m_panelContainer->setMinimumSize(400, 400);
+        setCentralWidget(m_panelContainer);
+    }
+
+    if (!m_library)
+    {
+        m_library = new LibraryController(this, globalCfg, nullptr);
+        m_library->loadConfig();
+        m_panelContainer->addWidget(m_library);
+    }
+    m_panelContainer->setCurrentWidget(m_library);
+    m_libraryVisible = true;
 
     hasOGL = globalCfg.GetBool("Screen.UseGL") ||
             (globalCfg.GetInt("3D.Renderer") != renderer3D_Software);
 
     if (hasOGL)
     {
-        ScreenPanelGL* panelGL = new ScreenPanelGL(this);
-        panelGL->show();
+        ScreenPanelGL* panelGL = new ScreenPanelGL(m_panelContainer);
+        panelGL->hide();
 
-        // make sure no GL context is in use by the emu thread
-        // otherwise we may fail to create a shared context
         if (windowID != 0)
             emuThread->borrowGL();
 
-        // Check that creating the context hasn't failed
         if (panelGL->createContext() == false)
         {
             Log(Platform::LogLevel::Error, "Failed to create OpenGL context, falling back to Software Renderer.\n");
             hasOGL = false;
-
             globalCfg.SetBool("Screen.UseGL", false);
             globalCfg.SetInt("3D.Renderer", renderer3D_Software);
-
             delete panelGL;
             panelGL = nullptr;
         }
@@ -890,38 +903,9 @@ void MainWindow::createScreenPanel()
 
     if (!hasOGL)
     {
-        ScreenPanelNative* panelNative = new ScreenPanelNative(this);
+        ScreenPanelNative* panelNative = new ScreenPanelNative(m_panelContainer);
+        panelNative->hide();
         panel = panelNative;
-        panel->show();
-    }
-    setCentralWidget(panel);
-
-    // Use a stacked widget: library is the background (page 0),
-    // screen panel is on top (page 1). They swap on emu start/stop.
-    if (!m_viewStack)
-    {
-        m_viewStack = new QStackedWidget(this);
-
-        m_library = new LibraryController(this, globalCfg, m_viewStack);
-        m_library->loadConfig();
-        m_viewStack->addWidget(m_library); // index 0 — library background
-        m_viewStack->addWidget(panel);     // index 1 — screen
-
-        // Start on library unless a game was already running
-        m_viewStack->setCurrentIndex(emuThread->emuIsActive() ? 1 : 0);
-
-        setCentralWidget(m_viewStack);
-    }
-    else
-    {
-        // GL context recreation — replace the screen panel in slot 1
-        QWidget* old = m_viewStack->widget(1);
-        m_viewStack->removeWidget(old);
-        delete old;
-        m_viewStack->insertWidget(1, panel);
-        // Preserve whichever page was active
-        if (m_viewStack->currentIndex() == 1)
-            m_viewStack->setCurrentIndex(1);
     }
 
     if (hasMenu)
@@ -929,9 +913,64 @@ void MainWindow::createScreenPanel()
     panel->osdSetEnabled(showOSD);
 
     connect(emuThread, SIGNAL(windowUpdate()), panel, SLOT(repaint()));
-
     connect(this, SIGNAL(screenLayoutChange()), panel, SLOT(onScreenLayoutChanged()));
+    // screenLayoutChange is emitted in showScreenPanel() once the panel has
+    // its real size, not here where it would use the minimum size (256x384).
+}
+
+void MainWindow::showScreenPanel()
+{
+    // Cancel any pending deferred library switch from onEmuStop.
+    m_pendingLibrarySwitch = false;
+
+    if (!panel || !m_panelContainer) return;
+
+    if (m_panelContainer->indexOf(panel) < 0)
+        m_panelContainer->insertWidget(0, panel);
+
+    m_panelContainer->setCurrentWidget(panel);
+    m_libraryVisible = false;
+    panel->show();
+
+    // Emit screenLayoutChange now that the panel has its real committed size,
+    // so layout transforms are calculated correctly.
     emit screenLayoutChange();
+
+    if (hasOGL)
+    {
+        ScreenPanelGL* glpanel = static_cast<ScreenPanelGL*>(panel);
+        if (glpanel) glpanel->transferLayout();
+    }
+
+    panel->setFocus();
+}
+
+void MainWindow::destroyScreenPanel()
+{
+    // Remove the panel from the stack and delete it.
+    // The library page becomes current again.
+    if (panel && m_panelContainer)
+    {
+        disconnect(emuThread, SIGNAL(windowUpdate()), panel, SLOT(repaint()));
+        disconnect(this, SIGNAL(screenLayoutChange()), panel, SLOT(onScreenLayoutChanged()));
+        m_panelContainer->removeWidget(panel);
+    }
+    delete panel;
+    panel = nullptr;
+
+    if (m_panelContainer && m_library)
+    {
+        m_panelContainer->setCurrentWidget(m_library);
+        m_libraryVisible = true;
+    }
+}
+
+void MainWindow::prepareScreenForBoot()
+{
+    m_pendingLibrarySwitch = false;
+
+    if (hasOGL)
+        emuThread->initContext(windowID);
 }
 
 GL::Context* MainWindow::getOGLContext()
@@ -987,6 +1026,9 @@ void MainWindow::releaseGL()
 
 void MainWindow::drawScreen()
 {
+    // Don't attempt to render into the GL panel while it's not the active
+    // stack page — SwapBuffers on a hidden Wayland surface blocks indefinitely.
+    if (m_libraryVisible) return;
     if (!panel) return;
     return panel->drawScreen();
 }
@@ -1049,6 +1091,7 @@ void MainWindow::dropEvent(QDropEvent* event)
     QString errorstr;
     if (isNdsRom)
     {
+        prepareScreenForBoot();
         if (!emuThread->bootROM(file, errorstr))
         {
             QMessageBox::critical(this, "melonDS", errorstr);
@@ -1161,6 +1204,7 @@ bool MainWindow::preloadROMs(QStringList file, QStringList gbafile, bool boot)
     {
         if (boot)
         {
+            prepareScreenForBoot();
             if (!emuThread->bootROM(file, errorstr))
             {
                 QMessageBox::critical(this, "melonDS", errorstr);
@@ -1183,6 +1227,7 @@ bool MainWindow::preloadROMs(QStringList file, QStringList gbafile, bool boot)
     }
     else if (boot)
     {
+        prepareScreenForBoot();
         if (!emuThread->bootFirmware(errorstr))
         {
             QMessageBox::critical(this, "melonDS", errorstr);
@@ -1385,6 +1430,7 @@ void MainWindow::onOpenFile()
     if (file.isEmpty())
         return;
 
+    prepareScreenForBoot();
     QString errorstr;
     if (!emuThread->bootROM(file, errorstr))
     {
@@ -1415,9 +1461,9 @@ void MainWindow::onAddLibraryFolder()
     if (m_library)
     {
         m_library->addDirectory(dir, true);
-        // Switch to library view so the user sees their games appear
-        if (m_viewStack && !emuThread->emuIsActive())
-            m_viewStack->setCurrentIndex(0);
+        // Show library so user sees their games appear
+        if (m_library && !emuThread->emuIsActive())
+            if (m_panelContainer) { m_panelContainer->setCurrentWidget(m_library); m_libraryVisible = true; }
     }
 }
 
@@ -1544,6 +1590,7 @@ void MainWindow::onClickRecentFile()
     if (file.isEmpty())
         return;
 
+    prepareScreenForBoot();
     QString errorstr;
     if (!emuThread->bootROM(file, errorstr))
     {
@@ -1563,6 +1610,7 @@ void MainWindow::onBootFirmware()
     if (!verifySetup())
         return;
 
+    prepareScreenForBoot();
     QString errorstr;
     if (!emuThread->bootFirmware(errorstr))
     {
@@ -1967,7 +2015,17 @@ void MainWindow::onInputConfigFinished(int res)
 void MainWindow::onOpenVideoSettings()
 {
     VideoSettingsDialog* dlg = VideoSettingsDialog::openDlg(this);
-    connect(dlg, &VideoSettingsDialog::updateVideoSettings, this, &MainWindow::onUpdateVideoSettings);
+    // Qt::QueuedConnection is critical here: the dialog emits updateVideoSettings
+    // from a direct slot (e.g. onChange3DRenderer) while still on the UI thread.
+    // A direct connection would call onUpdateVideoSettings inline, which calls
+    // emuThread->emuPause() -> waitMessage(), blocking the UI event loop.
+    // The emu thread then tries SwapBuffers() which waits on the compositor,
+    // which waits on the UI thread -> deadlock. QueuedConnection posts the call
+    // to the event queue instead, so the dialog slot returns first and the event
+    // loop stays live when onUpdateVideoSettings actually runs.
+    connect(dlg, &VideoSettingsDialog::updateVideoSettings,
+            this, &MainWindow::onUpdateVideoSettings,
+            Qt::QueuedConnection);
 }
 
 void MainWindow::onOpenCameraSettings()
@@ -2310,12 +2368,21 @@ void MainWindow::onScreenEmphasisToggled()
     emit screenLayoutChange();
 }
 
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+    QMainWindow::resizeEvent(event);
+    // QStackedWidget handles child geometry automatically; nothing to do here.
+}
+
 void MainWindow::onEmuStart()
 {
     if (!hasMenu) return;
 
-    // Switch from library background to screen
-    if (m_viewStack) m_viewStack->setCurrentIndex(1);
+    // Cancel any pending library switch from onEmuStop
+    m_pendingLibrarySwitch = false;
+
+    // Reveal the screen panel now that the emu (and GL context) is up.
+    showScreenPanel();
 
     for (int i = 1; i < 9; i++)
     {
@@ -2342,8 +2409,24 @@ void MainWindow::onEmuStop()
 {
     if (!hasMenu) return;
 
-    // Switch back to library background
-    if (m_viewStack) m_viewStack->setCurrentIndex(0);
+    // Set m_libraryVisible immediately so the emu thread's paused loop stops
+    // calling drawScreen/makeCurrentGL at once. If this is deferred, the emu
+    // thread can be inside SwapBuffers when the next boot calls waitMessage(),
+    // deadlocking the compositor on Wayland.
+    m_libraryVisible = true;
+
+    // Defer the visual stack switch — if a new game launches immediately
+    // (e.g. library double-click), prepareScreenForBoot/onEmuStart can cancel
+    // it before the library page is shown unnecessarily.
+    m_pendingLibrarySwitch = true;
+    QPointer<MainWindow> self(this);
+    QTimer::singleShot(0, this, [self]() {
+        if (!self) return;
+        if (!self->m_pendingLibrarySwitch) return;
+        self->m_pendingLibrarySwitch = false;
+        if (self->m_panelContainer && self->m_library)
+            self->m_panelContainer->setCurrentWidget(self->m_library);
+    });
 
     for (int i = 0; i < 9; i++)
     {
@@ -2353,6 +2436,7 @@ void MainWindow::onEmuStop()
     actUndoStateLoad->setEnabled(false);
 
     actPause->setEnabled(false);
+    actPause->setChecked(false); // clear stale state if game stopped while paused
     actReset->setEnabled(false);
     actStop->setEnabled(false);
     actFrameStep->setEnabled(false);
@@ -2392,7 +2476,16 @@ void MainWindow::onUpdateVideoSettings(bool glchange)
     bool hadOGL = hasOGL;
     if (glchange)
     {
+        // Suppress all repaints for the duration of the GL context switch
+        setUpdatesEnabled(false);
+
         emuThread->emuPause();
+
+        // Cancel any pending deferred library switch from onEmuStop — we're
+        // about to rebuild the panel ourselves and don't want the lambda
+        // interfering with the new panel.
+        m_pendingLibrarySwitch = false;
+
         if (hadOGL)
         {
             emuThread->deinitContext(windowID);
@@ -2405,16 +2498,12 @@ void MainWindow::onUpdateVideoSettings(bool glchange)
 
         createScreenPanel();
         for (auto child: childwins)
-        {
             child->createScreenPanel();
-        }
     }
 
     emuThread->updateVideoSettings();
     for (auto child: childwins)
     {
-        // child windows may belong to a different instance
-        // in that case we need to signal their thread appropriately
         auto thread = child->getEmuInstance()->getEmuThread();
         if (child->getWindowID() == 0)
             thread->updateVideoSettings();
@@ -2422,7 +2511,7 @@ void MainWindow::onUpdateVideoSettings(bool glchange)
 
     if (glchange)
     {
-        if (hasOGL) 
+        if (hasOGL)
         {
             emuThread->initContext(windowID);
             for (auto child: childwins)
@@ -2431,10 +2520,17 @@ void MainWindow::onUpdateVideoSettings(bool glchange)
                 thread->initContext(child->windowID);
             }
         }
-    }
 
-    if (glchange)
-    {
+        // GL context is ready — show the panel now so the first rendered
+        // frame is correct and there is no flicker.
+        if (emuThread->emuIsActive())
+        {
+            showScreenPanel();
+            for (auto child: childwins)
+                child->showScreenPanel();
+        }
+
         emuThread->emuUnpause();
+        setUpdatesEnabled(true);
     }
 }

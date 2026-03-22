@@ -80,6 +80,13 @@ void EmuThread::attachWindow(MainWindow* window)
     connect(this, SIGNAL(windowQuit()), window->actQuit, SLOT(trigger()));
     connect(this, SIGNAL(windowStop()), window->actStop, SLOT(trigger()));
     connect(this, &EmuThread::windowLibNav, window, &MainWindow::onLibNav);
+    // Hotkey signals: connect to action triggers so emuPause/emuReset/emuFrameStep
+    // are called from the UI thread, not the emu thread. Calling them from the emu
+    // thread causes waitMessage() to return immediately (same-thread check), leaking
+    // semaphore releases that poison subsequent bootROM waitMessage() calls.
+    connect(this, &EmuThread::windowEmuFrameStep, window->actFrameStep, &QAction::trigger);
+    connect(this, &EmuThread::windowEmuReset, window->actReset, &QAction::trigger);
+    connect(this, &EmuThread::windowEmuHotkeyPause, window->actPause, &QAction::trigger);
 
     if (window->winHasMenu())
     {
@@ -101,6 +108,9 @@ void EmuThread::detachWindow(MainWindow* window)
     disconnect(this, SIGNAL(windowQuit()), window->actQuit, SLOT(trigger()));
     disconnect(this, SIGNAL(windowStop()), window->actStop, SLOT(trigger()));
     disconnect(this, &EmuThread::windowLibNav, window, &MainWindow::onLibNav);
+    disconnect(this, &EmuThread::windowEmuFrameStep, window->actFrameStep, &QAction::trigger);
+    disconnect(this, &EmuThread::windowEmuReset, window->actReset, &QAction::trigger);
+    disconnect(this, &EmuThread::windowEmuHotkeyPause, window->actPause, &QAction::trigger);
 
     if (window->winHasMenu())
     {
@@ -124,18 +134,11 @@ void EmuThread::run()
 
     //videoSettingsDirty = false;
 
-    if (emuInstance->usesOpenGL())
-    {
-        emuInstance->initOpenGL(0);
-
-        useOpenGL = true;
-        videoRenderer = globalCfg.GetInt("3D.Renderer");
-    }
-    else
-    {
-        useOpenGL = false;
-        videoRenderer = 0;
-    }
+    // GL context init is handled by prepareScreenForBoot() on the UI thread
+    // before every bootROM/bootFirmware call, via msg_InitGL -> initOpenGL().
+    // useOpenGL and videoRenderer are set when msg_InitGL is processed.
+    useOpenGL = false;
+    videoRenderer = 0;
 
     //updateRenderer();
     videoSettingsDirty = true;
@@ -165,17 +168,22 @@ void EmuThread::run()
 
         if (emuInstance->hotkeyPressed(HK_FrameLimitToggle)) emit windowLimitFPSChange();
 
-        if (emuInstance->hotkeyPressed(HK_Pause)) emuTogglePause();
-        if (emuInstance->hotkeyPressed(HK_Reset)) emuReset();
-        if (emuInstance->hotkeyPressed(HK_FrameStep)) emuFrameStep();
+        // Gameplay hotkeys only make sense when a game is running.
+        // Allowing them while emuActive is false corrupts emuPauseStack
+        // or triggers stop/reset on an idle emulator.
+        // These must emit signals (UI thread) rather than call emuPause/emuReset
+        // directly — calling them from the emu thread causes waitMessage() to
+        // return immediately (same-thread check), leaking semaphore releases that
+        // poison subsequent waitMessage() calls in bootROM.
+        if (emuActive)
+        {
+            if (emuInstance->hotkeyPressed(HK_Pause))     emit windowEmuHotkeyPause();
+            if (emuInstance->hotkeyPressed(HK_Reset))     emit windowEmuReset();
+            if (emuInstance->hotkeyPressed(HK_FrameStep)) emit windowEmuFrameStep();
+            if (emuInstance->hotkeyPressed(HK_Stop))      emit windowStop();
+        }
 
         if (emuInstance->hotkeyPressed(HK_FullscreenToggle)) emit windowFullscreenToggle();
-
-        if (emuInstance->hotkeyPressed(HK_SwapScreens)) emit swapScreensToggle();
-        if (emuInstance->hotkeyPressed(HK_SwapScreenEmphasis)) emit screenEmphasisToggle();
-
-        if (emuInstance->hotkeyPressed(HK_Quit)) emit windowQuit();
-        if (emuInstance->hotkeyPressed(HK_Stop)) emit windowStop();
 
         // Library navigation — only when no game is running
         if (!emuActive)
@@ -544,7 +552,17 @@ void EmuThread::handleMessages()
             if (msg.param.value<bool>())
                 emuInstance->nds->Stop();
             emuStatus = emuStatus_Paused;
+            emuPauseStack = emuPauseStackRunning;
             emuActive = false;
+
+            // Set m_libraryVisible on all windows immediately here on the emu
+            // thread. This prevents the paused loop from calling drawScreen/
+            // makeCurrentGL after stop, which would cause a SwapBuffers deadlock
+            // if the UI thread calls waitMessage() for the next boot before
+            // onEmuStop() has a chance to run on the UI thread event loop.
+            emuInstance->doOnAllWindows([](MainWindow* win) {
+                win->m_libraryVisible = true;
+            });
 
             emuInstance->audioDisable();
             emit windowEmuStop();
@@ -567,17 +585,21 @@ void EmuThread::handleMessages()
             break;
 
         case msg_InitGL:
+            msgResult = 0;
             emuInstance->initOpenGL(msg.param.value<int>());
             useOpenGL = true;
+            videoSettingsDirty = true;
             break;
 
         case msg_DeInitGL:
+            msgResult = 0;
             emuInstance->deinitOpenGL(msg.param.value<int>());
             if (msg.param.value<int>() == 0)
                 useOpenGL = false;
             break;
 
         case msg_BorrowGL:
+            msgResult = 0;
             emuInstance->releaseGL();
             glborrow = true;
             break;
@@ -587,8 +609,8 @@ void EmuThread::handleMessages()
             if (!emuInstance->loadROM(msg.param.value<QStringList>(), true, msgError))
                 break;
 
-            assert(emuInstance->nds != nullptr);
-            emuInstance->nds->Start();
+            assert(emuInstance->getNDS() != nullptr);
+            emuInstance->getNDS()->Start();
             msgResult = 1;
             break;
 

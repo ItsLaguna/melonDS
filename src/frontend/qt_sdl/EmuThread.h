@@ -148,6 +148,8 @@ signals:
     void windowEmuStop();
     void windowEmuPause(bool pause);
     void windowEmuReset();
+    void windowEmuFrameStep();
+    void windowEmuHotkeyPause(); // fired by HK_Pause hotkey only, triggers actPause
 
     void windowLimitFPSChange();
 
