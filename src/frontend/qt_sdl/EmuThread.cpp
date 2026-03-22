@@ -184,6 +184,9 @@ void EmuThread::run()
         }
 
         if (emuInstance->hotkeyPressed(HK_FullscreenToggle)) emit windowFullscreenToggle();
+        if (emuInstance->hotkeyPressed(HK_SwapScreens)) emit swapScreensToggle();
+        if (emuInstance->hotkeyPressed(HK_SwapScreenEmphasis)) emit screenEmphasisToggle();
+        if (emuInstance->hotkeyPressed(HK_Quit)) emit windowQuit();
 
         // Library navigation — only when no game is running
         if (!emuActive)
