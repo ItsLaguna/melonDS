@@ -1,20 +1,20 @@
 /*
-    Copyright 2016-2026 melonDS team
-
-    This file is part of melonDS.
-
-    melonDS is free software: you can redistribute it and/or modify it under
-    the terms of the GNU General Public License as published by the Free
-    Software Foundation, either version 3 of the License, or (at your option)
-    any later version.
-
-    melonDS is distributed in the hope that it will be useful, but WITHOUT ANY
-    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-    FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License along
-    with melonDS. If not, see http://www.gnu.org/licenses/.
-*/
+ *   Copyright 2016-2026 melonDS team
+ *
+ *   This file is part of melonDS.
+ *
+ *   melonDS is free software: you can redistribute it and/or modify it under
+ *   the terms of the GNU General Public License as published by the Free
+ *   Software Foundation, either version 3 of the License, or (at your option)
+ *   any later version.
+ *
+ *   melonDS is distributed in the hope that it will be useful, but WITHOUT ANY
+ *   WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ *   FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with melonDS. If not, see http://www.gnu.org/licenses/.
+ */
 
 #include "NDS.h"
 #include <stdlib.h>
@@ -85,6 +85,7 @@
 #include "Window.h"
 #include "AboutDialog.h"
 #include "LibraryController.h"
+#include "OverlayWidget.h"
 
 using namespace melonDS;
 
@@ -105,7 +106,7 @@ QStringList GbaRomExtensions { ".gba", ".agb" };
 // This list of supported archive formats is based on libarchive(3) version 3.6.2 (2022-12-09).
 QStringList ArchiveMimeTypes
 {
-#ifdef ARCHIVE_SUPPORT_ENABLED
+    #ifdef ARCHIVE_SUPPORT_ENABLED
     "application/zip",
     "application/x-7z-compressed",
     "application/vnd.rar", // *.rar
@@ -122,12 +123,12 @@ QStringList ArchiveMimeTypes
     "application/x-lzma-compressed-tar",
     "application/x-lrzip-compressed-tar",
     "application/x-tzo", // *.tar.lzo
-#endif
+    #endif
 };
 
 QStringList ArchiveExtensions
 {
-#ifdef ARCHIVE_SUPPORT_ENABLED
+    #ifdef ARCHIVE_SUPPORT_ENABLED
     ".zip", ".7z", ".rar", ".tar",
 
     ".tar.gz", ".tgz",
@@ -141,7 +142,7 @@ QStringList ArchiveExtensions
     ".tar.lzma", ".tlz",
     ".tar.lrz", ".tlrz",
     ".tar.lzo", ".tzo"
-#endif
+    #endif
 };
 
 // AAAAAAA
@@ -194,13 +195,13 @@ static bool SupportedArchiveByMimetype(const QMimeType& mimetype)
 static bool ZstdNdsRomByExtension(const QString& filename)
 {
     return filename.endsWith(".zst", Qt::CaseInsensitive) &&
-        NdsRomByExtension(filename.left(filename.size() - 4));
+    NdsRomByExtension(filename.left(filename.size() - 4));
 }
 
 static bool ZstdGbaRomByExtension(const QString& filename)
 {
     return filename.endsWith(".zst", Qt::CaseInsensitive) &&
-        GbaRomByExtension(filename.left(filename.size() - 4));
+    GbaRomByExtension(filename.left(filename.size() - 4));
 }
 
 static bool FileIsSupportedFiletype(const QString& filename, bool insideArchive = false)
@@ -230,17 +231,17 @@ static void signalHandler(int)
 
 
 MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
-    QMainWindow(parent),
-    windowID(id),
-    emuInstance(inst),
-    globalCfg(inst->globalCfg),
-    localCfg(inst->localCfg),
-    windowCfg(localCfg.GetTable("Window"+std::to_string(id), "Window0")),
-    emuThread(inst->getEmuThread()),
-    enabledSaved(false),
-    focused(true)
+QMainWindow(parent),
+windowID(id),
+emuInstance(inst),
+globalCfg(inst->globalCfg),
+localCfg(inst->localCfg),
+windowCfg(localCfg.GetTable("Window"+std::to_string(id), "Window0")),
+emuThread(inst->getEmuThread()),
+enabledSaved(false),
+focused(true)
 {
-#ifndef _WIN32
+    #ifndef _WIN32
     if (!parent)
     {
         if (socketpair(AF_UNIX, SOCK_STREAM, 0, signalFd))
@@ -259,7 +260,7 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
         sa.sa_flags |= SA_RESTART;
         sigaction(SIGINT, &sa, 0);
     }
-#endif
+    #endif
 
     showOSD = windowCfg.GetBool("ShowOSD");
 
@@ -268,12 +269,12 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
     setAcceptDrops(true);
     setFocusPolicy(Qt::ClickFocus);
 
-#if QT_VERSION_MAJOR == 6 && WIN32
+    #if QT_VERSION_MAJOR == 6 && WIN32
     // The "windows11" theme has pretty massive padding around menubar items, this makes Config and Help not fit in a window at 1x screen sizing
     // So let's reduce the padding a bit.
     if (QApplication::style()->name() == "windows11")
         setStyleSheet("QMenuBar::item { padding: 4px 8px; }");
-#endif
+    #endif
 
     //hasMenu = (!parent);
     hasMenu = true;
@@ -292,8 +293,8 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
             connect(actAddLibraryFolder, &QAction::triggered, this, &MainWindow::onAddLibraryFolder);
 
             /*actOpenROMArchive = menu->addAction("Open ROM inside archive...");
-            connect(actOpenROMArchive, &QAction::triggered, this, &MainWindow::onOpenFileArchive);
-            actOpenROMArchive->setShortcut(QKeySequence(Qt::Key_O | Qt::CTRL | Qt::SHIFT));*/
+             *           connect(actOpenROMArchive, &QAction::triggered, this, &MainWindow::onOpenFileArchive);
+             *           actOpenROMArchive->setShortcut(QKeySequence(Qt::Key_O | Qt::CTRL | Qt::SHIFT));*/
 
             recentMenu = menu->addMenu("Open recent");
             loadRecentFilesMenu(true);
@@ -470,15 +471,15 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
                 connect(actLANStartClient, &QAction::triggered, this, &MainWindow::onLANStartClient);
 
                 /*submenu->addSeparator();
-
-                actNPStartHost = submenu->addAction("NETPLAY HOST");
-                connect(actNPStartHost, &QAction::triggered, this, &MainWindow::onNPStartHost);
-
-                actNPStartClient = submenu->addAction("NETPLAY CLIENT");
-                connect(actNPStartClient, &QAction::triggered, this, &MainWindow::onNPStartClient);
-
-                actNPTest = submenu->addAction("NETPLAY GO");
-                connect(actNPTest, &QAction::triggered, this, &MainWindow::onNPTest);*/
+                 *
+                 *               actNPStartHost = submenu->addAction("NETPLAY HOST");
+                 *               connect(actNPStartHost, &QAction::triggered, this, &MainWindow::onNPStartHost);
+                 *
+                 *               actNPStartClient = submenu->addAction("NETPLAY CLIENT");
+                 *               connect(actNPStartClient, &QAction::triggered, this, &MainWindow::onNPStartClient);
+                 *
+                 *               actNPTest = submenu->addAction("NETPLAY GO");
+                 *               connect(actNPTest, &QAction::triggered, this, &MainWindow::onNPTest);*/
             }
         }
         {
@@ -554,23 +555,23 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
                 grpScreenSizing = new QActionGroup(submenu);
 
                 const char *screensizing[] = {"Even", "Emphasize top", "Emphasize bottom", "Auto", "Top only",
-                                              "Bottom only"};
+                    "Bottom only"};
 
-                for (int i = 0; i < screenSizing_MAX; i++)
-                {
-                    actScreenSizing[i] = submenu->addAction(QString(screensizing[i]));
-                    actScreenSizing[i]->setActionGroup(grpScreenSizing);
-                    actScreenSizing[i]->setData(QVariant(i));
-                    actScreenSizing[i]->setCheckable(true);
-                }
+                    for (int i = 0; i < screenSizing_MAX; i++)
+                    {
+                        actScreenSizing[i] = submenu->addAction(QString(screensizing[i]));
+                        actScreenSizing[i]->setActionGroup(grpScreenSizing);
+                        actScreenSizing[i]->setData(QVariant(i));
+                        actScreenSizing[i]->setCheckable(true);
+                    }
 
-                connect(grpScreenSizing, &QActionGroup::triggered, this, &MainWindow::onChangeScreenSizing);
+                    connect(grpScreenSizing, &QActionGroup::triggered, this, &MainWindow::onChangeScreenSizing);
 
-                submenu->addSeparator();
+                    submenu->addSeparator();
 
-                actIntegerScaling = submenu->addAction("Force integer scaling");
-                actIntegerScaling->setCheckable(true);
-                connect(actIntegerScaling, &QAction::triggered, this, &MainWindow::onChangeIntegerScaling);
+                    actIntegerScaling = submenu->addAction("Force integer scaling");
+                    actIntegerScaling->setCheckable(true);
+                    connect(actIntegerScaling, &QAction::triggered, this, &MainWindow::onChangeIntegerScaling);
             }
             {
                 QMenu * submenu = menu->addMenu("Aspect ratio");
@@ -626,11 +627,11 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
             actEmuSettings = menu->addAction("Emu settings");
             connect(actEmuSettings, &QAction::triggered, this, &MainWindow::onOpenEmuSettings);
 
-#ifdef __APPLE__
+            #ifdef __APPLE__
             actPreferences = menu->addAction("Preferences...");
             connect(actPreferences, &QAction::triggered, this, &MainWindow::onOpenEmuSettings);
             actPreferences->setMenuRole(QAction::PreferencesRole);
-#endif
+            #endif
 
             actInputConfig = menu->addAction("Input and hotkeys");
             connect(actInputConfig, &QAction::triggered, this, &MainWindow::onOpenInputConfig);
@@ -685,12 +686,12 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
             actMPNewInstance->setText("Fart");
     }
 
-#ifdef Q_OS_MAC
+    #ifdef Q_OS_MAC
     QPoint screenCenter = screen()->availableGeometry().center();
     QRect frameGeo = frameGeometry();
     frameGeo.moveCenter(screenCenter);
     move(frameGeo.topLeft());
-#endif
+    #endif
 
     std::string geom = windowCfg.GetString("Geometry");
     if (!geom.empty())
@@ -786,9 +787,9 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
             actWifiSettings->setEnabled(false);
             actInterfaceSettings->setEnabled(false);
 
-#ifdef __APPLE__
+            #ifdef __APPLE__
             actPreferences->setEnabled(false);
-#endif // __APPLE__
+            #endif // __APPLE__
         }
 
         if (emuThread->emuIsActive())
@@ -871,11 +872,12 @@ void MainWindow::createScreenPanel()
         m_library->loadConfig();
         m_panelContainer->addWidget(m_library);
     }
+
     m_panelContainer->setCurrentWidget(m_library);
     m_libraryVisible = true;
 
     hasOGL = globalCfg.GetBool("Screen.UseGL") ||
-            (globalCfg.GetInt("3D.Renderer") != renderer3D_Software);
+    (globalCfg.GetInt("3D.Renderer") != renderer3D_Software);
 
     if (hasOGL)
     {
@@ -911,6 +913,20 @@ void MainWindow::createScreenPanel()
     if (hasMenu)
         actScreenFiltering->setEnabled(hasOGL);
     panel->osdSetEnabled(showOSD);
+
+    // Create overlay as child of m_panelContainer AFTER the panel so it
+    // stacks above it. Also recreate if panel container changed.
+    if (!m_overlay && hasMenu)
+    {
+        m_overlay = new OverlayWidget(this, m_panelContainer, emuInstance);
+        // When the overlay finishes closing, resume the game if it was running.
+        connect(m_overlay, &OverlayWidget::closed, this, &MainWindow::onOverlayResume);
+    }
+    else if (m_overlay && m_overlay->parentWidget() != m_panelContainer)
+    {
+        m_overlay->setParent(m_panelContainer);
+        m_overlay->setGeometry(m_panelContainer->rect());
+    }
 
     connect(emuThread, SIGNAL(windowUpdate()), panel, SLOT(repaint()));
     connect(this, SIGNAL(screenLayoutChange()), panel, SLOT(onScreenLayoutChanged()));
@@ -956,7 +972,8 @@ void MainWindow::destroyScreenPanel()
         m_panelContainer->removeWidget(panel);
     }
     delete panel;
-    panel = nullptr;
+    panel      = nullptr;
+
 
     if (m_panelContainer && m_library)
     {
@@ -976,9 +993,8 @@ void MainWindow::prepareScreenForBoot()
 GL::Context* MainWindow::getOGLContext()
 {
     if (!hasOGL) return nullptr;
-
     ScreenPanelGL* glpanel = static_cast<ScreenPanelGL*>(panel);
-    return glpanel->getContext();
+    return glpanel ? glpanel->getContext() : nullptr;
 }
 
 void MainWindow::initOpenGL()
@@ -1026,27 +1042,22 @@ void MainWindow::releaseGL()
 
 void MainWindow::drawScreen()
 {
-    // Don't attempt to render into the GL panel while it's not the active
-    // stack page — SwapBuffers on a hidden Wayland surface blocks indefinitely.
     if (m_libraryVisible) return;
     if (!panel) return;
-    return panel->drawScreen();
+    panel->drawScreen();
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event)
 {
     if (event->isAutoRepeat()) return;
-
-    // TODO!! REMOVE ME IN RELEASE BUILDS!!
-    //if (event->key() == Qt::Key_F11) emuInstance->getNDS()->debug(0);
-
+    if (m_overlay && m_overlay->isOpen()) return;
     emuInstance->onKeyPress(event);
 }
 
 void MainWindow::keyReleaseEvent(QKeyEvent* event)
 {
     if (event->isAutoRepeat()) return;
-
+    if (m_overlay && m_overlay->isOpen()) return;
     emuInstance->onKeyRelease(event);
 }
 
@@ -1168,8 +1179,8 @@ bool MainWindow::verifySetup()
     QString res = emuInstance->verifySetup();
     if (!res.isEmpty())
     {
-         QMessageBox::critical(this, "melonDS", res);
-         return false;
+        QMessageBox::critical(this, "melonDS", res);
+        return false;
     }
 
     return true;
@@ -1246,7 +1257,7 @@ QStringList MainWindow::splitArchivePath(const QString& filename, bool useMember
 {
     if (filename.isEmpty()) return {};
 
-#ifdef ARCHIVE_SUPPORT_ENABLED
+    #ifdef ARCHIVE_SUPPORT_ENABLED
     if (useMemberSyntax)
     {
         const QStringList filenameParts = filename.split('|');
@@ -1275,7 +1286,7 @@ QStringList MainWindow::splitArchivePath(const QString& filename, bool useMember
             return filenameParts;
         }
     }
-#endif
+    #endif
 
     if (!QFileInfo(filename).exists())
     {
@@ -1283,7 +1294,7 @@ QStringList MainWindow::splitArchivePath(const QString& filename, bool useMember
         return {};
     }
 
-#ifdef ARCHIVE_SUPPORT_ENABLED
+    #ifdef ARCHIVE_SUPPORT_ENABLED
     if (SupportedArchiveByExtension(filename)
         || SupportedArchiveByMimetype(QMimeDatabase().mimeTypeForFile(filename)))
     {
@@ -1293,7 +1304,7 @@ QStringList MainWindow::splitArchivePath(const QString& filename, bool useMember
 
         return { filename, subfile };
     }
-#endif
+    #endif
 
     return { filename };
 }
@@ -1361,17 +1372,17 @@ QStringList MainWindow::pickROM(bool gba)
     extraFilters += ");;Zstandard-compressed " + console + " ROMs (" + zstdROMs + ")";
     allROMs += " " + zstdROMs;
 
-#ifdef ARCHIVE_SUPPORT_ENABLED
+    #ifdef ARCHIVE_SUPPORT_ENABLED
     QString archives = "*" + ArchiveExtensions.join(" *");
     extraFilters += ";;Archives (" + archives + ")";
     allROMs += " " + archives;
-#endif
+    #endif
     extraFilters += ";;All files (*.*)";
 
     const QString filename = QFileDialog::getOpenFileName(
         this, "Open " + console + " ROM",
         globalCfg.GetQString("LastROMFolder"),
-        "All supported files (*" + allROMs + ")" + extraFilters
+                                                          "All supported files (*" + allROMs + ")" + extraFilters
     );
 
     if (filename.isEmpty())
@@ -1451,7 +1462,7 @@ void MainWindow::onAddLibraryFolder()
     const QString dir = QFileDialog::getExistingDirectory(
         this,
         tr("Add folder to library"),
-        globalCfg.GetQString("LastROMFolder"));
+                                                          globalCfg.GetQString("LastROMFolder"));
 
     if (dir.isEmpty()) return;
 
@@ -1469,6 +1480,13 @@ void MainWindow::onAddLibraryFolder()
 
 void MainWindow::onLibNav(int hk)
 {
+    // If overlay is open, route nav keys to it
+    if (m_overlay && m_overlay->isOpen())
+    {
+        m_overlay->navKey(hk);
+        return;
+    }
+
     if (!m_library) return;
     QAbstractItemView* view = m_library->activeView();
     if (!view) return;
@@ -1476,20 +1494,71 @@ void MainWindow::onLibNav(int hk)
     Qt::Key key;
     switch (hk)
     {
-    case HK_LibPrev:    key = Qt::Key_Left;   break;
-    case HK_LibNext:    key = Qt::Key_Right;  break;
-    case HK_LibPrevRow: key = Qt::Key_Up;     break;
-    case HK_LibNextRow: key = Qt::Key_Down;   break;
-    case HK_LibConfirm: key = Qt::Key_Return; break;
-    default: return;
+        case HK_NavLeft:    key = Qt::Key_Left;   break;
+        case HK_NavRight:    key = Qt::Key_Right;  break;
+        case HK_NavUp: key = Qt::Key_Up;     break;
+        case HK_NavDown: key = Qt::Key_Down;   break;
+        case HK_NavConfirm: key = Qt::Key_Return; break;
+        default: return;
     }
 
-    // Post a synthetic key event to the active view — Qt handles
-    // list/grid movement (including wrap, page, selection) natively.
     QApplication::postEvent(view,
-        new QKeyEvent(QEvent::KeyPress,  key, Qt::NoModifier));
+                            new QKeyEvent(QEvent::KeyPress,  key, Qt::NoModifier));
     QApplication::postEvent(view,
-        new QKeyEvent(QEvent::KeyRelease, key, Qt::NoModifier));
+                            new QKeyEvent(QEvent::KeyRelease, key, Qt::NoModifier));
+}
+
+void MainWindow::onOverlayToggle()
+{
+    if (!m_overlay) return;
+
+    if (m_overlay->isOpen())
+    {
+        m_overlay->close();
+        // onOverlayResume will be triggered by the closed() signal
+        // once the animation finishes — no need to call it here.
+    }
+    else
+    {
+        bool wasRunning = emuThread->emuIsActive() && !actPause->isChecked();
+
+        if (m_panelContainer && m_library)
+        {
+            m_panelContainer->setCurrentWidget(m_library);
+            m_libraryVisible = true;
+        }
+
+        // Always pause while overlay is open
+        if (wasRunning)
+            emuThread->emuPause();
+
+        // didPauseGame = game was running when we opened,
+        // so we should unpause it when we close (regardless of who paused it)
+        m_overlay->setDidPauseGame(wasRunning);
+        emuInstance->setInputBlocked(true);
+        emuInstance->keyReleaseAll();
+        if (panel) m_overlay->setFrozenFrame(panel->grab());
+        m_overlay->open();
+    }
+}
+
+void MainWindow::onOverlayResume()
+{
+    if (!m_overlay) return;
+    bool shouldResume = m_overlay->didPauseGame();
+    m_overlay->setDidPauseGame(false);
+    emuInstance->setInputBlocked(false);
+    // Only switch back to the panel if the emu is still running.
+    // If Quit to Library was selected, actStop fires after closed() and
+    // onEmuStop handles the library transition — we must not override it.
+    if (emuThread->emuIsActive() && panel && m_panelContainer)
+    {
+        m_panelContainer->setCurrentWidget(panel);
+        m_libraryVisible = false;
+    }
+    if (emuThread->emuIsActive() && panel) panel->setFocus();
+    if (shouldResume && emuThread->emuIsActive())
+        emuThread->emuUnpause();
 }
 
 void MainWindow::onClearRecentFiles()
@@ -1529,13 +1598,13 @@ void MainWindow::loadRecentFilesMenu(bool loadcfg)
         {
             int cut_start = 0;
             while (item_full[cut_start] != '/' && item_full[cut_start] != '\\' &&
-                   cut_start < itemlen)
+                cut_start < itemlen)
                 cut_start++;
 
             int cut_end = itemlen-1;
             while (((item_full[cut_end] != '/' && item_full[cut_end] != '\\') ||
-                    (cut_start+4+(itemlen-cut_end) < maxlen)) &&
-                   cut_end > 0)
+                (cut_start+4+(itemlen-cut_end) < maxlen)) &&
+                cut_end > 0)
                 cut_end--;
 
             item_display.truncate(cut_start+1);
@@ -1692,9 +1761,9 @@ void MainWindow::onSaveState()
         // TODO: specific 'last directory' for savestate files?
         emuThread->emuPause();
         filename = QFileDialog::getSaveFileName(this,
-                                                         "Save state",
-                                                         globalCfg.GetQString("LastROMFolder"),
-                                                         "melonDS savestates (*.mln);;Any file (*.*)");
+                                                "Save state",
+                                                globalCfg.GetQString("LastROMFolder"),
+                                                "melonDS savestates (*.mln);;Any file (*.*)");
         emuThread->emuUnpause();
         if (filename.isEmpty())
             return;
@@ -1727,9 +1796,9 @@ void MainWindow::onLoadState()
         // TODO: specific 'last directory' for savestate files?
         emuThread->emuPause();
         filename = QFileDialog::getOpenFileName(this,
-                                                         "Load state",
-                                                         globalCfg.GetQString("LastROMFolder"),
-                                                         "melonDS savestates (*.ml*);;Any file (*.*)");
+                                                "Load state",
+                                                globalCfg.GetQString("LastROMFolder"),
+                                                "melonDS savestates (*.ml*);;Any file (*.*)");
         emuThread->emuUnpause();
         if (filename.isEmpty())
             return;
@@ -1766,9 +1835,9 @@ void MainWindow::onUndoStateLoad()
 void MainWindow::onImportSavefile()
 {
     QString path = QFileDialog::getOpenFileName(this,
-                                            "Select savefile",
-                                            globalCfg.GetQString("LastROMFolder"),
-                                            "Savefiles (*.sav *.bin *.dsv);;Any file (*.*)");
+                                                "Select savefile",
+                                                globalCfg.GetQString("LastROMFolder"),
+                                                "Savefiles (*.sav *.bin *.dsv);;Any file (*.*)");
 
     if (path.isEmpty())
         return;
@@ -1782,9 +1851,9 @@ void MainWindow::onImportSavefile()
     if (emuThread->emuIsActive())
     {
         if (QMessageBox::warning(this,
-                        "melonDS",
-                        "The emulation will be reset and the current savefile overwritten.",
-                        QMessageBox::Ok, QMessageBox::Cancel) != QMessageBox::Ok)
+            "melonDS",
+            "The emulation will be reset and the current savefile overwritten.",
+            QMessageBox::Ok, QMessageBox::Cancel) != QMessageBox::Ok)
         {
             return;
         }
@@ -1799,10 +1868,10 @@ void MainWindow::onImportSavefile()
 
 void MainWindow::onQuit()
 {
-#ifndef _WIN32
+    #ifndef _WIN32
     if (!parentWidget())
         signalSn->setEnabled(false);
-#endif
+    #endif
     close();
 }
 
@@ -1941,8 +2010,8 @@ void MainWindow::updateMPInterface(MPInterfaceType type)
     actLANStartHost->setEnabled(enable);
     actLANStartClient->setEnabled(enable);
     /*actNPStartHost->setEnabled(enable);
-    actNPStartClient->setEnabled(enable);
-    actNPTest->setEnabled(enable);*/
+     *   actNPStartClient->setEnabled(enable);
+     *   actNPTest->setEnabled(enable);*/
 }
 
 bool MainWindow::lanWarning(bool host)
@@ -1952,8 +2021,8 @@ bool MainWindow::lanWarning(bool host)
 
     QString verb = host ? "host" : "join";
     QString msg = "Multiple emulator instances are currently open.\n"
-            "If you "+verb+" a LAN game now, all secondary instances will be closed.\n\n"
-            "Do you wish to continue?";
+    "If you "+verb+" a LAN game now, all secondary instances will be closed.\n\n"
+    "Do you wish to continue?";
 
     auto res = QMessageBox::warning(this, "melonDS", msg, QMessageBox::Yes|QMessageBox::No, QMessageBox::No);
     if (res == QMessageBox::No)
@@ -2371,7 +2440,13 @@ void MainWindow::onScreenEmphasisToggled()
 void MainWindow::resizeEvent(QResizeEvent* event)
 {
     QMainWindow::resizeEvent(event);
-    // QStackedWidget handles child geometry automatically; nothing to do here.
+    if (m_overlay) m_overlay->reposition();
+}
+
+void MainWindow::moveEvent(QMoveEvent* event)
+{
+    QMainWindow::moveEvent(event);
+    if (m_overlay) m_overlay->reposition();
 }
 
 void MainWindow::onEmuStart()
@@ -2380,6 +2455,10 @@ void MainWindow::onEmuStart()
 
     // Cancel any pending library switch from onEmuStop
     m_pendingLibrarySwitch = false;
+
+    // Always clear input block on new game start — the overlay may have been
+    // open when Quit to Library was triggered, leaving inputBlocked set.
+    emuInstance->setInputBlocked(false);
 
     // Reveal the screen panel now that the emu (and GL context) is up.
     showScreenPanel();

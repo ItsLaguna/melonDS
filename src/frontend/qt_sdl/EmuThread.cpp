@@ -80,12 +80,18 @@ void EmuThread::attachWindow(MainWindow* window)
     connect(this, SIGNAL(windowQuit()), window->actQuit, SLOT(trigger()));
     connect(this, SIGNAL(windowStop()), window->actStop, SLOT(trigger()));
     connect(this, &EmuThread::windowLibNav, window, &MainWindow::onLibNav);
+    connect(this, &EmuThread::windowOverlayToggle, window, &MainWindow::onOverlayToggle);
     // Hotkey signals: connect to action triggers so emuPause/emuReset/emuFrameStep
     // are called from the UI thread, not the emu thread. Calling them from the emu
     // thread causes waitMessage() to return immediately (same-thread check), leaking
     // semaphore releases that poison subsequent bootROM waitMessage() calls.
     connect(this, &EmuThread::windowEmuFrameStep, window->actFrameStep, &QAction::trigger);
-    connect(this, &EmuThread::windowEmuReset, window->actReset, &QAction::trigger);
+    // Connect HK_Reset to trigger emuReset() on the UI thread (avoids same-thread
+    // waitMessage() deadlock), but do NOT go through actReset->trigger() since
+    // msg_EmuReset also emits windowEmuReset, which would cause an infinite loop.
+    connect(this, &EmuThread::windowEmuReset, window, [this, window]() {
+        if (emuIsActive()) emuReset();
+    }, Qt::QueuedConnection);
     connect(this, &EmuThread::windowEmuHotkeyPause, window->actPause, &QAction::trigger);
 
     if (window->winHasMenu())
@@ -108,8 +114,9 @@ void EmuThread::detachWindow(MainWindow* window)
     disconnect(this, SIGNAL(windowQuit()), window->actQuit, SLOT(trigger()));
     disconnect(this, SIGNAL(windowStop()), window->actStop, SLOT(trigger()));
     disconnect(this, &EmuThread::windowLibNav, window, &MainWindow::onLibNav);
+    disconnect(this, &EmuThread::windowOverlayToggle, window, &MainWindow::onOverlayToggle);
     disconnect(this, &EmuThread::windowEmuFrameStep, window->actFrameStep, &QAction::trigger);
-    disconnect(this, &EmuThread::windowEmuReset, window->actReset, &QAction::trigger);
+    disconnect(this, &EmuThread::windowEmuReset, window, nullptr);
     disconnect(this, &EmuThread::windowEmuHotkeyPause, window->actPause, &QAction::trigger);
 
     if (window->winHasMenu())
@@ -187,15 +194,22 @@ void EmuThread::run()
         if (emuInstance->hotkeyPressed(HK_SwapScreens)) emit swapScreensToggle();
         if (emuInstance->hotkeyPressed(HK_SwapScreenEmphasis)) emit screenEmphasisToggle();
         if (emuInstance->hotkeyPressed(HK_Quit)) emit windowQuit();
+        if (emuActive && emuInstance->hotkeyPressed(HK_Overlay)) emit windowOverlayToggle();
 
-        // Library navigation — only when no game is running
-        if (!emuActive)
+        // Library nav — when no game running OR when overlay/library is visible.
+        // Check m_overlay directly too since m_libraryVisible may not be set yet
+        // on the same frame that HK_Overlay fires (queued signal delay).
+        bool navActive = !emuActive || emuInstance->getMainWindow()->m_libraryVisible
+                         || (emuInstance->getMainWindow()->getOverlay()
+                             && emuInstance->getMainWindow()->getOverlay()->isOpen());
+        if (navActive)
         {
-            if (emuInstance->hotkeyPressed(HK_LibPrev))    emit windowLibNav(HK_LibPrev);
-            if (emuInstance->hotkeyPressed(HK_LibNext))    emit windowLibNav(HK_LibNext);
-            if (emuInstance->hotkeyPressed(HK_LibPrevRow)) emit windowLibNav(HK_LibPrevRow);
-            if (emuInstance->hotkeyPressed(HK_LibNextRow)) emit windowLibNav(HK_LibNextRow);
-            if (emuInstance->hotkeyPressed(HK_LibConfirm)) emit windowLibNav(HK_LibConfirm);
+            if (emuInstance->hotkeyPressed(HK_NavLeft))    emit windowLibNav(HK_NavLeft);
+            if (emuInstance->hotkeyPressed(HK_NavRight))    emit windowLibNav(HK_NavRight);
+            if (emuInstance->hotkeyPressed(HK_NavUp)) emit windowLibNav(HK_NavUp);
+            if (emuInstance->hotkeyPressed(HK_NavDown)) emit windowLibNav(HK_NavDown);
+            if (emuInstance->hotkeyPressed(HK_NavConfirm)) emit windowLibNav(HK_NavConfirm);
+            if (emuInstance->hotkeyPressed(HK_NavBack))    emit windowLibNav(HK_NavBack);
         }
 
         if (emuStatus == emuStatus_Running || emuStatus == emuStatus_FrameStep)
@@ -583,7 +597,9 @@ void EmuThread::handleMessages()
             emuActive = true;
 
             emuInstance->audioEnable();
-            emit windowEmuReset();
+            // Do NOT emit windowEmuReset here — the signal is for the HK_Reset
+            // hotkey path only. Emitting it from msg_EmuReset causes a loop:
+            // windowEmuReset → lambda → emuReset() → msg_EmuReset → repeat.
             emuInstance->osdAddMessage(0, "Reset");
             break;
 
@@ -884,8 +900,8 @@ int EmuThread::undoStateLoad()
 
 int EmuThread::importSavefile(const QString& filename)
 {
-    sendMessage(msg_EmuReset);
     sendMessage({.type = msg_ImportSavefile, .param = filename});
+    sendMessage(msg_EmuReset);
     waitMessage(2);
     return msgResult;
 }
