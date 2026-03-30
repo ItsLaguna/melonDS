@@ -42,6 +42,7 @@
 #include "Config.h"
 #include "MPInterface.h"
 #include "LibraryController.h"
+#include "OverlayWidget.h"
 
 
 class EmuInstance;
@@ -60,6 +61,8 @@ public:
     EmuInstance* getEmuInstance() { return emuInstance; }
     Config::Table& getWindowConfig() { return windowCfg; }
     int getWindowID() { return windowID; }
+    OverlayWidget* getOverlay() { return m_overlay; }
+    QString getGBACartSlotText() const { return actCurrentGBACart ? actCurrentGBACart->text() : QString(); }
 
     bool winHasMenu() { return hasMenu; }
 
@@ -116,6 +119,8 @@ signals:
 
 public slots:
     void onLibNav(int hk);
+    void onOverlayToggle();
+    void onOverlayResume();
 
 private slots:
     void onOpenFile();
@@ -239,7 +244,7 @@ private:
     Config::Table windowCfg;
 
 public:
-    ScreenPanel* panel;
+    ScreenPanel*       panel = nullptr;
 
     bool hasMenu;
     bool m_pendingLibrarySwitch = false;
@@ -256,8 +261,36 @@ public:
     QAction* actReset;
     QAction* actFrameStep;
 
+    // Actions accessed by OverlayWidget
+    QAction* actInsertGBACart;
+    QList<QAction*> actInsertGBAAddon;
+    QAction* actEjectGBACart;
+    QAction* actImportSavefile;
+    QAction* actSaveState[9];
+    QAction* actLoadState[9];
+    QAction* actEnableCheats;
+    QAction* actSetupCheats;
+    QAction* actPowerManagement;
+    QAction* actDateTime;
+    QAction* actTitleManager;
+    QAction* actLANStartHost;
+    QAction* actLANStartClient;
+    QAction* actEmuSettings;
+    QAction* actInputConfig;
+    QAction* actVideoSettings;
+    QAction* actAudioSettings;
+    QAction* actIntegerScaling;
+    QAction* actScreenFiltering;
+    QAction* actShowOSD;
+    QAction* actAudioSync;
+    QActionGroup* grpScreenLayout;
+    QActionGroup* grpScreenRotation;
+    QActionGroup* grpScreenSizing;
+    QActionGroup* grpScreenGap;
+
 protected:
     void resizeEvent(QResizeEvent* event) override;
+    void moveEvent(QMoveEvent* event) override;
 
     QAction* actOpenROM;
     QAction* actAddLibraryFolder;
@@ -266,65 +299,41 @@ protected:
     QAction* actInsertCart;
     QAction* actEjectCart;
     QAction* actCurrentGBACart;
-    QAction* actInsertGBACart;
-    QList<QAction*> actInsertGBAAddon;
-    QAction* actEjectGBACart;
-    QAction* actImportSavefile;
-    QAction* actSaveState[9];
-    QAction* actLoadState[9];
     QAction* actUndoStateLoad;
     QAction* actOpenConfig;
 
-    QAction* actPowerManagement;
-    QAction* actDateTime;
-    QAction* actEnableCheats;
-    QAction* actSetupCheats;
     QAction* actROMInfo;
     QAction* actRAMInfo;
-    QAction* actTitleManager;
     QAction* actMPNewInstance;
-    QAction* actLANStartHost;
-    QAction* actLANStartClient;
     QAction* actNPStartHost;
     QAction* actNPStartClient;
     QAction* actNPTest;
 
-    QAction* actEmuSettings;
 #ifdef __APPLE__
     QAction* actPreferences;
 #endif
-    QAction* actInputConfig;
-    QAction* actVideoSettings;
     QAction* actCameraSettings;
-    QAction* actAudioSettings;
     QAction* actMPSettings;
     QAction* actWifiSettings;
     QAction* actFirmwareSettings;
     QAction* actPathSettings;
     QAction* actInterfaceSettings;
     QAction* actScreenSize[4];
-    QActionGroup* grpScreenRotation;
     QAction* actScreenRotation[screenRot_MAX];
-    QActionGroup* grpScreenGap;
     QAction* actScreenGap[6];
-    QActionGroup* grpScreenLayout;
     QAction* actScreenLayout[screenLayout_MAX];
-    QActionGroup* grpScreenSizing;
     QAction* actScreenSizing[screenSizing_MAX];
-    QAction* actIntegerScaling;
     QActionGroup* grpScreenAspectTop;
     QAction** actScreenAspectTop;
     QActionGroup* grpScreenAspectBot;
     QAction** actScreenAspectBot;
-    QAction* actScreenFiltering;
-    QAction* actShowOSD;
-    QAction* actAudioSync;
 
     QAction* actAbout;
 
     // Game library — shown as background when no game is running
     QStackedWidget*    m_panelContainer = nullptr;
-    LibraryController* m_library   = nullptr;
+    LibraryController* m_library        = nullptr;
+    OverlayWidget*     m_overlay        = nullptr;
 };
 
 #endif // WINDOW_H
