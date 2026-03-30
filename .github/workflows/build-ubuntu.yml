@@ -48,13 +48,6 @@ jobs:
         modules: 'qtmultimedia'
         cache: true
 
-    - name: Debug Qt paths
-      run: |
-        echo "Qt6_DIR=$Qt6_DIR"
-        echo "QT_ROOT_DIR=$QT_ROOT_DIR"
-        find /home/runner/work -name 'libQt6Core.so*' 2>/dev/null | head -5
-        find /home/runner/work -name 'qmake6' 2>/dev/null | head -3
-
     - name: Configure
       run: cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX=/usr -DMELONDS_EMBED_BUILD_INFO=ON
 
@@ -74,15 +67,20 @@ jobs:
         QMAKE=$(find /home/runner/work -name 'qmake6' 2>/dev/null | head -1)
         QT_INSTALL_LIBS=$(${QMAKE} -query QT_INSTALL_LIBS)
         QT_INSTALL_PLUGINS=$(${QMAKE} -query QT_INSTALL_PLUGINS)
-        echo "QT_INSTALL_LIBS=$QT_INSTALL_LIBS"
-        echo "QT_INSTALL_PLUGINS=$QT_INSTALL_PLUGINS"
 
         mkdir -p AppDir/usr/lib AppDir/usr/lib/qt6/plugins
 
+        # Qt libraries
         for lib in Core Gui Widgets Network Multimedia OpenGL OpenGLWidgets Svg DBus WaylandClient WaylandCompositor XcbQpa; do
           cp -a $QT_INSTALL_LIBS/libQt6${lib}.so* AppDir/usr/lib/ 2>/dev/null || true
         done
 
+        # ICU libraries (bundled with Qt installer, required by Qt6Core)
+        cp -a $QT_INSTALL_LIBS/libicui18n.so* AppDir/usr/lib/ 2>/dev/null || true
+        cp -a $QT_INSTALL_LIBS/libicuuc.so*   AppDir/usr/lib/ 2>/dev/null || true
+        cp -a $QT_INSTALL_LIBS/libicudata.so* AppDir/usr/lib/ 2>/dev/null || true
+
+        # Qt plugins
         for plugin in platforms imageformats multimedia xcbglintegrations wayland-graphics-integration-client wayland-decoration-client wayland-shell-integration; do
           cp -a $QT_INSTALL_PLUGINS/$plugin AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
         done
