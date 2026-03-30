@@ -71,6 +71,7 @@ static constexpr std::initializer_list<int> hk_general =
     HK_AudioMuteToggle,
     HK_Quit,
     HK_Stop,
+    HK_Overlay,
 };
 
 static constexpr std::initializer_list<const char*> hk_general_labels =
@@ -94,26 +95,29 @@ static constexpr std::initializer_list<const char*> hk_general_labels =
     "Toggle audio mute",
     "Quit",
     "Stop",
+    "Open overlay",
 };
 
 static_assert(hk_general.size() == hk_general_labels.size());
 
 static constexpr std::initializer_list<int> hk_navigation =
 {
-    HK_LibPrev,
-    HK_LibNext,
-    HK_LibPrevRow,
-    HK_LibNextRow,
-    HK_LibConfirm,
+    HK_NavLeft,
+    HK_NavRight,
+    HK_NavUp,
+    HK_NavDown,
+    HK_NavConfirm,
+    HK_NavBack,
 };
 
 static constexpr std::initializer_list<const char*> hk_navigation_labels =
 {
-    "Previous",
-    "Next",
-    "Previous row",
-    "Next row",
-    "Launch",
+    "Left",
+    "Right",
+    "Up",
+    "Down",
+    "Confirm",
+    "Back",
 };
 
 static_assert(hk_navigation.size() == hk_navigation_labels.size());
