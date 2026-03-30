@@ -54,7 +54,7 @@ jobs:
         host: linux
         target: desktop
         arch: ${{ matrix.arch.qt_arch }}
-        modules: 'qtmultimedia qtwayland'
+        modules: 'qtmultimedia'
         cache: true
 
     - name: Configure
@@ -74,39 +74,41 @@ jobs:
       run: |
         mkdir -p AppDir/usr/lib
         QT_LIB=$Qt6_DIR/lib
-        cp -a $QT_LIB/libQt6Core.so*          AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6Gui.so*           AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6Widgets.so*       AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6Network.so*       AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6Multimedia.so*    AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6OpenGL.so*        AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6OpenGLWidgets.so* AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6Svg.so*           AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6WaylandClient.so* AppDir/usr/lib/ 2>/dev/null || true
+        cp -a $QT_LIB/libQt6Core.so*              AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6Gui.so*               AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6Widgets.so*           AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6Network.so*           AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6Multimedia.so*        AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6OpenGL.so*            AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6OpenGLWidgets.so*     AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6Svg.so*               AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6WaylandClient.so*     AppDir/usr/lib/ 2>/dev/null || true
         cp -a $QT_LIB/libQt6WaylandCompositor.so* AppDir/usr/lib/ 2>/dev/null || true
-        cp -a $QT_LIB/libQt6XcbQpa.so*        AppDir/usr/lib/ 2>/dev/null || true
+        cp -a $QT_LIB/libQt6XcbQpa.so*            AppDir/usr/lib/ 2>/dev/null || true
+        cp -a $QT_LIB/libQt6DBus.so*              AppDir/usr/lib/ 2>/dev/null || true
 
     - name: Copy Qt plugins
       run: |
         mkdir -p AppDir/usr/lib/qt6/plugins
         QT_PLUGINS=$Qt6_DIR/plugins
-        cp -a $QT_PLUGINS/platforms        AppDir/usr/lib/qt6/plugins/
-        cp -a $QT_PLUGINS/imageformats     AppDir/usr/lib/qt6/plugins/
-        cp -a $QT_PLUGINS/multimedia       AppDir/usr/lib/qt6/plugins/
+        cp -a $QT_PLUGINS/platforms         AppDir/usr/lib/qt6/plugins/
+        cp -a $QT_PLUGINS/imageformats      AppDir/usr/lib/qt6/plugins/
+        cp -a $QT_PLUGINS/multimedia        AppDir/usr/lib/qt6/plugins/
         cp -a $QT_PLUGINS/wayland-graphics-integration-client AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
         cp -a $QT_PLUGINS/wayland-decoration-client           AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
         cp -a $QT_PLUGINS/wayland-shell-integration           AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
+        cp -a $QT_PLUGINS/xcbglintegrations                   AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
 
     - name: Create AppRun script
       run: |
         cat > AppDir/AppRun << 'APPRUN'
-        #!/bin/bash
-        SELF=$(readlink -f "$0")
-        HERE=$(dirname "$SELF")
-        export QT_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"
-        export LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"
-        exec "$HERE/usr/bin/melonDS" "$@"
-        APPRUN
+#!/bin/bash
+SELF=$(readlink -f "$0")
+HERE=$(dirname "$SELF")
+export QT_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"
+export LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"
+exec "$HERE/usr/bin/melonDS" "$@"
+APPRUN
         chmod +x AppDir/AppRun
 
     - name: Copy desktop file and icon
@@ -120,8 +122,7 @@ jobs:
         chmod +x appimagetool
 
     - name: Build AppImage
-      run: |
-        ./appimagetool AppDir melonDS-x86_64.AppImage
+      run: ./appimagetool AppDir melonDS-x86_64.AppImage
 
     - uses: actions/upload-artifact@v4
       with:
