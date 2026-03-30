@@ -1,20 +1,20 @@
 /*
- *   Copyright 2016-2026 melonDS team
- *
- *   This file is part of melonDS.
- *
- *   melonDS is free software: you can redistribute it and/or modify it under
- *   the terms of the GNU General Public License as published by the Free
- *   Software Foundation, either version 3 of the License, or (at your option)
- *   any later version.
- *
- *   melonDS is distributed in the hope that it will be useful, but WITHOUT ANY
- *   WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- *   FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *   You should have received a copy of the GNU General Public License along
- *   with melonDS. If not, see http://www.gnu.org/licenses/.
- */
+    Copyright 2016-2026 melonDS team
+
+    This file is part of melonDS.
+
+    melonDS is free software: you can redistribute it and/or modify it under
+    the terms of the GNU General Public License as published by the Free
+    Software Foundation, either version 3 of the License, or (at your option)
+    any later version.
+
+    melonDS is distributed in the hope that it will be useful, but WITHOUT ANY
+    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+    FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with melonDS. If not, see http://www.gnu.org/licenses/.
+*/
 
 #include <QKeyEvent>
 #include <SDL2/SDL.h>
@@ -70,13 +70,11 @@ const char* EmuInstance::hotkeyNames[HK_MAX] =
     "HK_GuitarGripBlue",
     "HK_Quit",
     "HK_Stop",
-    "HK_NavLeft",
-    "HK_NavRight",
-    "HK_NavUp",
-    "HK_NavDown",
-    "HK_NavConfirm",
-    "HK_NavBack",
-    "HK_Overlay"
+    "HK_LibPrev",
+    "HK_LibNext",
+    "HK_LibPrevRow",
+    "HK_LibNextRow",
+    "HK_LibConfirm"
 };
 
 std::shared_ptr<SDL_mutex> EmuInstance::joyMutexGlobal = nullptr;
@@ -184,12 +182,12 @@ float EmuInstance::inputMotionQuery(melonDS::Platform::MotionQueryType type)
                 SDL_UnlockMutex(joyMutex.get());
                 switch (type)
                 {
-                    case melonDS::Platform::MotionAccelerationX:
-                        return values[0];
-                    case melonDS::Platform::MotionAccelerationY:
-                        return -values[2];
-                    case melonDS::Platform::MotionAccelerationZ:
-                        return values[1];
+                case melonDS::Platform::MotionAccelerationX:
+                    return values[0];
+                case melonDS::Platform::MotionAccelerationY:
+                    return -values[2];
+                case melonDS::Platform::MotionAccelerationZ:
+                    return values[1];
                 }
             }
         }
@@ -204,12 +202,12 @@ float EmuInstance::inputMotionQuery(melonDS::Platform::MotionQueryType type)
                 SDL_UnlockMutex(joyMutex.get());
                 switch (type)
                 {
-                    case melonDS::Platform::MotionRotationX:
-                        return values[0];
-                    case melonDS::Platform::MotionRotationY:
-                        return -values[2];
-                    case melonDS::Platform::MotionRotationZ:
-                        return values[1];
+                case melonDS::Platform::MotionRotationX:
+                    return values[0];
+                case melonDS::Platform::MotionRotationY:
+                    return -values[2];
+                case melonDS::Platform::MotionRotationZ:
+                    return values[1];
                 }
             }
         }
@@ -297,16 +295,16 @@ void EmuInstance::closeJoystick()
 // provide different scancodes)
 bool isRightModKey(QKeyEvent* event)
 {
-    #ifdef __WIN32__
+#ifdef __WIN32__
     quint32 scan = event->nativeScanCode();
     return (scan == 0x11D || scan == 0x138 || scan == 0x36);
-    #elif __APPLE__
+#elif __APPLE__
     quint32 scan = event->nativeVirtualKey();
     return (scan == 0x36 || scan == 0x3C || scan == 0x3D || scan == 0x3E);
-    #else
+#else
     quint32 scan = event->nativeScanCode();
     return (scan == 0x69 || scan == 0x6C || scan == 0x3E);
-    #endif
+#endif
 }
 
 int getEventKeyVal(QKeyEvent* event)
@@ -314,10 +312,10 @@ int getEventKeyVal(QKeyEvent* event)
     int key = event->key();
     int mod = event->modifiers();
     bool ismod = (key == Qt::Key_Control ||
-    key == Qt::Key_Alt ||
-    key == Qt::Key_AltGr ||
-    key == Qt::Key_Shift ||
-    key == Qt::Key_Meta);
+                  key == Qt::Key_Alt ||
+                  key == Qt::Key_AltGr ||
+                  key == Qt::Key_Shift ||
+                  key == Qt::Key_Meta);
 
     if (!ismod)
         key |= mod;
@@ -449,7 +447,6 @@ void EmuInstance::inputProcess()
     }
 
     inputMask = keyInputMask & joyInputMask;
-    if (inputBlocked) inputMask = 0xFFF; // overlay open — block all game buttons
 
     joyHotkeyMask = 0;
     if (joystick)

@@ -164,8 +164,7 @@ signals:
 
     void windowQuit();
     void windowStop();
-    void windowOverlayToggle();
-    void windowLibNav(int hk); // emitted with HK_Nav* value for overlay/library navigation
+    void windowLibNav(int hk); // emitted with HK_Lib* value when library is visible
 
 private:
     void handleMessages();

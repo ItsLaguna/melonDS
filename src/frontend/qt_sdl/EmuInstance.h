@@ -1,20 +1,20 @@
 /*
- C opyright 2016-202*6 melonDS team
+    Copyright 2016-2026 melonDS team
 
- This file is part of melonDS.
+    This file is part of melonDS.
 
- melonDS is free software: you can redistribute it and/or modify it under
- the terms of the GNU General Public License as published by the Free
- Software Foundation, either version 3 of the License, or (at your option)
- any later version.
+    melonDS is free software: you can redistribute it and/or modify it under
+    the terms of the GNU General Public License as published by the Free
+    Software Foundation, either version 3 of the License, or (at your option)
+    any later version.
 
- melonDS is distributed in the hope that it will be useful, but WITHOUT ANY
- WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+    melonDS is distributed in the hope that it will be useful, but WITHOUT ANY
+    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+    FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License along
- with melonDS. If not, see http://www.gnu.org/licenses/.
- */
+    You should have received a copy of the GNU General Public License along
+    with melonDS. If not, see http://www.gnu.org/licenses/.
+*/
 
 #ifndef EMUINSTANCE_H
 #define EMUINSTANCE_H
@@ -58,13 +58,11 @@ enum
     HK_GuitarGripBlue,
     HK_Quit,
     HK_Stop,
-    HK_NavLeft,
-    HK_NavRight,
-    HK_NavUp,
-    HK_NavDown,
-    HK_NavConfirm,
-    HK_NavBack,
-    HK_Overlay,
+    HK_LibPrev,
+    HK_LibNext,
+    HK_LibPrevRow,
+    HK_LibNextRow,
+    HK_LibConfirm,
     HK_MAX
 };
 
@@ -80,10 +78,10 @@ enum
 enum
 {
     renderer3D_Software = 0,
-    #ifdef OGLRENDERER_ENABLED
+#ifdef OGLRENDERER_ENABLED
     renderer3D_OpenGL,
     renderer3D_OpenGLCompute,
-    #endif
+#endif
     renderer3D_Max,
 };
 
@@ -254,7 +252,6 @@ private:
     void onKeyPress(QKeyEvent* event);
     void onKeyRelease(QKeyEvent* event);
     void keyReleaseAll();
-    void setInputBlocked(bool blocked) { inputBlocked = blocked; }
 
     void openJoystick();
     void closeJoystick();
@@ -383,7 +380,6 @@ private:
     melonDS::u32 hotkeyPress, hotkeyRelease;
 
     melonDS::u32 inputMask;
-    bool inputBlocked = false;
 
     bool isTouching;
     melonDS::u16 touchX, touchY;
