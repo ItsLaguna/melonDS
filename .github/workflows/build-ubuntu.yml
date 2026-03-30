@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - master
+  workflow_dispatch:
 
 env:
   MELONDS_GIT_BRANCH: ${{ github.ref }}
@@ -22,10 +23,9 @@ jobs:
     strategy:
       matrix:
         arch:
-          - runner: ubuntu-24.04
+          - runner: ubuntu-22.04
             name: x86_64
-          - runner: ubuntu-24.04-arm
-            name: aarch64
+            qt_arch: linux_gcc_64
 
     name: ${{ matrix.arch.name }}
     runs-on: ${{ matrix.arch.runner }}
@@ -33,33 +33,96 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       name: Check out sources
-    - name: Install dependencies
+
+    - name: Install system dependencies
       run: |
         sudo apt update
-        sudo apt install --allow-downgrades cmake ninja-build extra-cmake-modules libpcap0.8-dev libsdl2-dev libenet-dev \
-          qt6-{base,base-private,multimedia}-dev qt6-wayland libqt6svg6-dev libarchive-dev libzstd-dev libfuse2 libfaad-dev
+        sudo apt install --allow-downgrades cmake ninja-build extra-cmake-modules \
+          libpcap0.8-dev libsdl2-dev libenet-dev libarchive-dev libzstd-dev \
+          libfaad-dev libfuse2 \
+          libwayland-dev wayland-protocols \
+          libgl1-mesa-dev libegl1-mesa-dev \
+          libxkbcommon-dev libxkbcommon-x11-dev \
+          libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev \
+          libxcb-randr0-dev libxcb-render-util0-dev libxcb-shape0-dev \
+          libxcb-xinerama0-dev libxcb-xfixes0-dev
+
+    - name: Install Qt 6.10
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: '6.10.0'
+        host: linux
+        target: desktop
+        arch: ${{ matrix.arch.qt_arch }}
+        modules: 'qtmultimedia qtwayland'
+        cache: true
+
     - name: Configure
       run: cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX=/usr -DMELONDS_EMBED_BUILD_INFO=ON
+
     - name: Build
       run: |
         cmake --build build
         DESTDIR=AppDir cmake --install build
+
     - uses: actions/upload-artifact@v4
       with:
         name: melonDS-ubuntu-${{ matrix.arch.name }}
         path: AppDir/usr/bin/melonDS
-    - name: Fetch AppImage tools
+
+    - name: Copy Qt and system libraries into AppDir
       run: |
-        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.arch.name }}.AppImage
-        wget https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${{ matrix.arch.name }}.AppImage
-        chmod a+x linuxdeploy-*.AppImage
-    - name: Build the AppImage
-      env:
-        EXTRA_PLATFORM_PLUGINS: libqwayland-egl.so;libqwayland-generic.so
-        EXTRA_QT_PLUGINS: waylandcompositor
-        QMAKE: /usr/lib/qt6/bin/qmake
+        mkdir -p AppDir/usr/lib
+        QT_LIB=$Qt6_DIR/lib
+        cp -a $QT_LIB/libQt6Core.so*          AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6Gui.so*           AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6Widgets.so*       AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6Network.so*       AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6Multimedia.so*    AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6OpenGL.so*        AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6OpenGLWidgets.so* AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6Svg.so*           AppDir/usr/lib/
+        cp -a $QT_LIB/libQt6WaylandClient.so* AppDir/usr/lib/ 2>/dev/null || true
+        cp -a $QT_LIB/libQt6WaylandCompositor.so* AppDir/usr/lib/ 2>/dev/null || true
+        cp -a $QT_LIB/libQt6XcbQpa.so*        AppDir/usr/lib/ 2>/dev/null || true
+
+    - name: Copy Qt plugins
       run: |
-        ./linuxdeploy-${{ matrix.arch.name }}.AppImage --appdir AppDir --plugin qt --output appimage
+        mkdir -p AppDir/usr/lib/qt6/plugins
+        QT_PLUGINS=$Qt6_DIR/plugins
+        cp -a $QT_PLUGINS/platforms        AppDir/usr/lib/qt6/plugins/
+        cp -a $QT_PLUGINS/imageformats     AppDir/usr/lib/qt6/plugins/
+        cp -a $QT_PLUGINS/multimedia       AppDir/usr/lib/qt6/plugins/
+        cp -a $QT_PLUGINS/wayland-graphics-integration-client AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
+        cp -a $QT_PLUGINS/wayland-decoration-client           AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
+        cp -a $QT_PLUGINS/wayland-shell-integration           AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
+
+    - name: Create AppRun script
+      run: |
+        cat > AppDir/AppRun << 'APPRUN'
+        #!/bin/bash
+        SELF=$(readlink -f "$0")
+        HERE=$(dirname "$SELF")
+        export QT_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"
+        export LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"
+        exec "$HERE/usr/bin/melonDS" "$@"
+        APPRUN
+        chmod +x AppDir/AppRun
+
+    - name: Copy desktop file and icon
+      run: |
+        cp AppDir/usr/share/applications/net.kuribo64.melonDS.desktop AppDir/
+        cp AppDir/usr/share/icons/hicolor/256x256/apps/net.kuribo64.melonDS.png AppDir/
+
+    - name: Fetch appimagetool
+      run: |
+        wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+        chmod +x appimagetool
+
+    - name: Build AppImage
+      run: |
+        ./appimagetool AppDir melonDS-x86_64.AppImage
+
     - uses: actions/upload-artifact@v4
       with:
         name: melonDS-appimage-${{ matrix.arch.name }}
