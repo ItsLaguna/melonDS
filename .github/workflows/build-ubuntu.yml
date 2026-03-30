@@ -20,15 +20,8 @@ env:
 jobs:
   build:
     continue-on-error: true
-    strategy:
-      matrix:
-        arch:
-          - runner: ubuntu-22.04
-            name: x86_64
-            qt_arch: linux_gcc_64
-
-    name: ${{ matrix.arch.name }}
-    runs-on: ${{ matrix.arch.runner }}
+    name: x86_64
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v4
@@ -39,10 +32,8 @@ jobs:
         sudo apt update
         sudo apt install --allow-downgrades cmake ninja-build extra-cmake-modules \
           libpcap0.8-dev libsdl2-dev libenet-dev libarchive-dev libzstd-dev \
-          libfaad-dev libfuse2 \
-          libwayland-dev wayland-protocols \
-          libgl1-mesa-dev libegl1-mesa-dev \
-          libxkbcommon-dev libxkbcommon-x11-dev \
+          libfaad-dev libfuse2 libwayland-dev wayland-protocols \
+          libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-dev \
           libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev \
           libxcb-randr0-dev libxcb-render-util0-dev libxcb-shape0-dev \
           libxcb-xinerama0-dev libxcb-xfixes0-dev
@@ -53,7 +44,7 @@ jobs:
         version: '6.10.0'
         host: linux
         target: desktop
-        arch: ${{ matrix.arch.qt_arch }}
+        arch: linux_gcc_64
         modules: 'qtmultimedia'
         cache: true
 
@@ -67,48 +58,24 @@ jobs:
 
     - uses: actions/upload-artifact@v4
       with:
-        name: melonDS-ubuntu-${{ matrix.arch.name }}
+        name: melonDS-ubuntu-x86_64
         path: AppDir/usr/bin/melonDS
 
-    - name: Copy Qt and system libraries into AppDir
+    - name: Bundle Qt libraries
       run: |
-        mkdir -p AppDir/usr/lib
+        mkdir -p AppDir/usr/lib AppDir/usr/lib/qt6/plugins
         QT_LIB=$Qt6_DIR/lib
-        cp -a $QT_LIB/libQt6Core.so*              AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6Gui.so*               AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6Widgets.so*           AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6Network.so*           AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6Multimedia.so*        AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6OpenGL.so*            AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6OpenGLWidgets.so*     AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6Svg.so*               AppDir/usr/lib/
-        cp -a $QT_LIB/libQt6WaylandClient.so*     AppDir/usr/lib/ 2>/dev/null || true
-        cp -a $QT_LIB/libQt6WaylandCompositor.so* AppDir/usr/lib/ 2>/dev/null || true
-        cp -a $QT_LIB/libQt6XcbQpa.so*            AppDir/usr/lib/ 2>/dev/null || true
-        cp -a $QT_LIB/libQt6DBus.so*              AppDir/usr/lib/ 2>/dev/null || true
-
-    - name: Copy Qt plugins
-      run: |
-        mkdir -p AppDir/usr/lib/qt6/plugins
         QT_PLUGINS=$Qt6_DIR/plugins
-        cp -a $QT_PLUGINS/platforms         AppDir/usr/lib/qt6/plugins/
-        cp -a $QT_PLUGINS/imageformats      AppDir/usr/lib/qt6/plugins/
-        cp -a $QT_PLUGINS/multimedia        AppDir/usr/lib/qt6/plugins/
-        cp -a $QT_PLUGINS/wayland-graphics-integration-client AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
-        cp -a $QT_PLUGINS/wayland-decoration-client           AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
-        cp -a $QT_PLUGINS/wayland-shell-integration           AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
-        cp -a $QT_PLUGINS/xcbglintegrations                   AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
+        for lib in Core Gui Widgets Network Multimedia OpenGL OpenGLWidgets Svg DBus WaylandClient WaylandCompositor XcbQpa; do
+          cp -a $QT_LIB/libQt6${lib}.so* AppDir/usr/lib/ 2>/dev/null || true
+        done
+        for plugin in platforms imageformats multimedia xcbglintegrations wayland-graphics-integration-client wayland-decoration-client wayland-shell-integration; do
+          cp -a $QT_PLUGINS/$plugin AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
+        done
 
-    - name: Create AppRun script
+    - name: Create AppRun
       run: |
-        cat > AppDir/AppRun << 'APPRUN'
-#!/bin/bash
-SELF=$(readlink -f "$0")
-HERE=$(dirname "$SELF")
-export QT_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"
-export LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"
-exec "$HERE/usr/bin/melonDS" "$@"
-APPRUN
+        printf '#!/bin/bash\nSELF=$(readlink -f "$0")\nHERE=$(dirname "$SELF")\nexport QT_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"\nexport LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"\nexec "$HERE/usr/bin/melonDS" "$@"\n' > AppDir/AppRun
         chmod +x AppDir/AppRun
 
     - name: Copy desktop file and icon
@@ -126,5 +93,5 @@ APPRUN
 
     - uses: actions/upload-artifact@v4
       with:
-        name: melonDS-appimage-${{ matrix.arch.name }}
+        name: melonDS-appimage-x86_64
         path: melonDS*.AppImage
