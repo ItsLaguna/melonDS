@@ -81,7 +81,7 @@ jobs:
         cp -a $QT_INSTALL_LIBS/libicudata.so* AppDir/usr/lib/ 2>/dev/null || true
 
         # Qt plugins
-        for plugin in platforms imageformats multimedia xcbglintegrations wayland-graphics-integration-client wayland-decoration-client wayland-shell-integration; do
+        for plugin in platforms imageformats multimedia xcbglintegrations wayland-graphics-integration-client wayland-decoration-client wayland-shell-integration styles platformthemes; do
           cp -a $QT_INSTALL_PLUGINS/$plugin AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
         done
 
