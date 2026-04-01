@@ -140,10 +140,18 @@ void OverlayWidget::open()
     if (m_sidebar) m_sidebar->setCurrentRow(2);
     show();
     raise();
-    // Force repaint of the pages stack — without this the content may not
-    // render on first open until the user switches categories.
-    if (m_pages) m_pages->update();
-    if (m_pages && m_pages->currentWidget()) m_pages->currentWidget()->update();
+    // Force repaint of the current page including its scroll area viewport
+    if (m_pages)
+    {
+        m_pages->repaint();
+        if (QWidget* page = m_pages->currentWidget())
+        {
+            page->repaint();
+            // Repaint all children (including QScrollArea viewport)
+            for (QObject* obj : page->findChildren<QWidget*>())
+                static_cast<QWidget*>(obj)->repaint();
+        }
+    }
     m_sidebar->setFocus();
     animateIn();
 }
@@ -247,6 +255,7 @@ void OverlayWidget::buildUI()
 
     m_panel = new QWidget(this);
     m_panel->setObjectName("overlayPanel");
+    m_panel->setAttribute(Qt::WA_StyledBackground, true);
     m_panel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_panel->setStyleSheet(QString(
         "QWidget#overlayPanel { background-color: rgba(%1,%2,%3,235); }")
