@@ -140,6 +140,10 @@ void OverlayWidget::open()
     if (m_sidebar) m_sidebar->setCurrentRow(2);
     show();
     raise();
+    // Force repaint of the pages stack — without this the content may not
+    // render on first open until the user switches categories.
+    if (m_pages) m_pages->update();
+    if (m_pages && m_pages->currentWidget()) m_pages->currentWidget()->update();
     m_sidebar->setFocus();
     animateIn();
 }
@@ -147,6 +151,7 @@ void OverlayWidget::open()
 void OverlayWidget::close()
 {
     if (!m_open) return;
+    m_open = false;  // set immediately so isOpen() returns false right away
     animateOut();
 }
 
@@ -167,14 +172,13 @@ void OverlayWidget::paintEvent(QPaintEvent*)
 {
     QPainter p(this);
     bool isDark = (QApplication::palette().color(QPalette::Window).lightness() < 128);
-    // Always fill solid opaque first — prevents GL/bugged graphics bleeding through
-    // regardless of whether we have a frozen frame or not.
+    // Fill solid first to prevent GL/bugged graphics bleeding through
     QColor solidBg = isDark ? QColor(18, 18, 18) : QColor(210, 210, 210);
     p.fillRect(rect(), solidBg);
     if (!m_frozenFrame.isNull())
     {
         p.drawPixmap(rect(), m_frozenFrame.scaled(size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-        p.fillRect(rect(), isDark ? QColor(0,0,0,150) : QColor(0,0,0,110));
+        p.fillRect(rect(), isDark ? QColor(0, 0, 0, 150) : QColor(0, 0, 0, 110));
     }
 }
 
