@@ -93,10 +93,16 @@ jobs:
           cp -a $QT_INSTALL_PLUGINS/$plugin AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
         done
 
-        # styles plugin comes from system Qt package, not the installer
-        sudo apt install -y qt6-base-dev 2>/dev/null || true
-        find /usr/lib -path "*/qt6/plugins/styles" -type d 2>/dev/null | \
-          xargs -I{} cp -a {} AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
+        # styles — try Qt installer first, then system Qt
+        if [ -d "$QT_INSTALL_PLUGINS/styles" ]; then
+          cp -a $QT_INSTALL_PLUGINS/styles AppDir/usr/lib/qt6/plugins/
+          echo "styles: copied from Qt installer"
+        else
+          find /usr/lib -path "*/qt6/plugins/styles" -type d 2>/dev/null | \
+            xargs -I{} cp -a {} AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
+          echo "styles: copied from system Qt (or not found)"
+        fi
+        ls AppDir/usr/lib/qt6/plugins/styles/ 2>/dev/null || echo "WARNING: styles plugin missing"
 
         # Wayland platform plugins from system qt6-wayland
         find /usr/lib -name 'libqwayland-egl.so' -o -name 'libqwayland-generic.so' 2>/dev/null | \
