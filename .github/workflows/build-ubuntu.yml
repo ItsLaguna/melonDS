@@ -38,7 +38,7 @@ jobs:
           libxcb-randr0-dev libxcb-render-util0-dev libxcb-shape0-dev \
           libxcb-xinerama0-dev libxcb-xfixes0-dev qt6-wayland
 
-    - name: Install Qt 6.10
+    - name: Install Qt 6.10.2
       uses: jurplel/install-qt-action@v4
       with:
         version: '6.10.2'
@@ -61,7 +61,7 @@ jobs:
         name: melonDS-ubuntu-x86_64
         path: AppDir/usr/bin/melonDS
 
-    - name: Bundle Qt libraries
+    - name: Bundle libraries and plugins
       run: |
         set -e
         QMAKE=$(find /home/runner/work -name 'qmake6' 2>/dev/null | head -1)
@@ -71,17 +71,25 @@ jobs:
         mkdir -p AppDir/usr/lib AppDir/usr/lib/qt6/plugins
 
         # Qt libraries
-        for lib in Core Gui Widgets Network Multimedia OpenGL OpenGLWidgets Svg DBus WaylandClient WaylandCompositor XcbQpa; do
+        for lib in Core Gui Widgets Network Multimedia OpenGL OpenGLWidgets Svg DBus WaylandClient XcbQpa; do
           cp -a $QT_INSTALL_LIBS/libQt6${lib}.so* AppDir/usr/lib/ 2>/dev/null || true
         done
 
-        # ICU libraries (bundled with Qt installer, required by Qt6Core)
+        # ICU (bundled with Qt installer)
         cp -a $QT_INSTALL_LIBS/libicui18n.so* AppDir/usr/lib/ 2>/dev/null || true
         cp -a $QT_INSTALL_LIBS/libicuuc.so*   AppDir/usr/lib/ 2>/dev/null || true
         cp -a $QT_INSTALL_LIBS/libicudata.so* AppDir/usr/lib/ 2>/dev/null || true
 
+        # System libs missing from workflow vs manual build
+        cp -a /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so* AppDir/usr/lib/ 2>/dev/null || true
+        cp -a /usr/lib/x86_64-linux-gnu/libarchive.so*  AppDir/usr/lib/ 2>/dev/null || true
+        cp -a /usr/lib/x86_64-linux-gnu/libzstd.so*     AppDir/usr/lib/ 2>/dev/null || true
+        cp -a /usr/lib/x86_64-linux-gnu/libfaad.so*     AppDir/usr/lib/ 2>/dev/null || true
+
         # Qt plugins
-        for plugin in platforms imageformats multimedia xcbglintegrations wayland-graphics-integration-client wayland-decoration-client wayland-shell-integration styles platformthemes; do
+        for plugin in platforms imageformats multimedia xcbglintegrations \
+                      wayland-graphics-integration-client wayland-decoration-client \
+                      wayland-shell-integration styles platformthemes; do
           cp -a $QT_INSTALL_PLUGINS/$plugin AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
         done
 
