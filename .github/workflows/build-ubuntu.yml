@@ -86,12 +86,17 @@ jobs:
         cp -a /usr/lib/x86_64-linux-gnu/libzstd.so*     AppDir/usr/lib/ 2>/dev/null || true
         cp -a /usr/lib/x86_64-linux-gnu/libfaad.so*     AppDir/usr/lib/ 2>/dev/null || true
 
-        # Qt plugins
+        # Qt plugins from installer
         for plugin in platforms imageformats multimedia xcbglintegrations \
                       wayland-graphics-integration-client wayland-decoration-client \
-                      wayland-shell-integration styles platformthemes; do
+                      wayland-shell-integration platformthemes; do
           cp -a $QT_INSTALL_PLUGINS/$plugin AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
         done
+
+        # styles plugin comes from system Qt package, not the installer
+        sudo apt install -y qt6-base-dev 2>/dev/null || true
+        find /usr/lib -path "*/qt6/plugins/styles" -type d 2>/dev/null | \
+          xargs -I{} cp -a {} AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
 
         # Wayland platform plugins from system qt6-wayland
         find /usr/lib -name 'libqwayland-egl.so' -o -name 'libqwayland-generic.so' 2>/dev/null | \
