@@ -20,33 +20,28 @@ env:
 jobs:
   build:
     continue-on-error: true
-    name: x86_64
-    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        arch:
+          - runner: ubuntu-24.04
+            name: x86_64
+          - runner: ubuntu-24.04-arm
+            name: aarch64
+
+    name: ${{ matrix.arch.name }}
+    runs-on: ${{ matrix.arch.runner }}
 
     steps:
     - uses: actions/checkout@v4
       name: Check out sources
 
-    - name: Install system dependencies
+    - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install --allow-downgrades cmake ninja-build extra-cmake-modules \
-          libpcap0.8-dev libsdl2-dev libenet-dev libarchive-dev libzstd-dev \
-          libfaad-dev libfuse2 libwayland-dev wayland-protocols \
-          libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-dev \
-          libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev \
-          libxcb-randr0-dev libxcb-render-util0-dev libxcb-shape0-dev \
-          libxcb-xinerama0-dev libxcb-xfixes0-dev qt6-wayland
-
-    - name: Install Qt 6.10.2
-      uses: jurplel/install-qt-action@v4
-      with:
-        version: '6.10.2'
-        host: linux
-        target: desktop
-        arch: linux_gcc_64
-        modules: 'qtmultimedia'
-        cache: true
+        sudo apt install --allow-downgrades cmake extra-cmake-modules \
+          libcurl4-gnutls-dev libpcap0.8-dev libsdl2-dev libarchive-dev \
+          libenet-dev libzstd-dev libfaad-dev libfuse2 \
+          qt6-{base,base-private,multimedia,svg}-dev qt6-wayland
 
     - name: Configure
       run: cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX=/usr -DMELONDS_EMBED_BUILD_INFO=ON
@@ -58,75 +53,24 @@ jobs:
 
     - uses: actions/upload-artifact@v4
       with:
-        name: melonDS-ubuntu-x86_64
+        name: melonDS-ubuntu-${{ matrix.arch.name }}
         path: AppDir/usr/bin/melonDS
 
-    - name: Bundle libraries and plugins
+    - name: Fetch AppImage tools
       run: |
-        set -e
-        QMAKE=$(find /home/runner/work -name 'qmake6' 2>/dev/null | head -1)
-        QT_INSTALL_LIBS=$(${QMAKE} -query QT_INSTALL_LIBS)
-        QT_INSTALL_PLUGINS=$(${QMAKE} -query QT_INSTALL_PLUGINS)
+        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.arch.name }}.AppImage
+        wget https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${{ matrix.arch.name }}.AppImage
+        chmod a+x linuxdeploy-*.AppImage
 
-        mkdir -p AppDir/usr/lib AppDir/usr/lib/qt6/plugins
-
-        # Qt libraries
-        for lib in Core Gui Widgets Network Multimedia OpenGL OpenGLWidgets Svg DBus WaylandClient XcbQpa; do
-          cp -a $QT_INSTALL_LIBS/libQt6${lib}.so* AppDir/usr/lib/ 2>/dev/null || true
-        done
-
-        # ICU (bundled with Qt installer)
-        cp -a $QT_INSTALL_LIBS/libicui18n.so* AppDir/usr/lib/ 2>/dev/null || true
-        cp -a $QT_INSTALL_LIBS/libicuuc.so*   AppDir/usr/lib/ 2>/dev/null || true
-        cp -a $QT_INSTALL_LIBS/libicudata.so* AppDir/usr/lib/ 2>/dev/null || true
-
-        # System libs missing from workflow vs manual build
-        cp -a /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so* AppDir/usr/lib/ 2>/dev/null || true
-        cp -a /usr/lib/x86_64-linux-gnu/libarchive.so*  AppDir/usr/lib/ 2>/dev/null || true
-        cp -a /usr/lib/x86_64-linux-gnu/libzstd.so*     AppDir/usr/lib/ 2>/dev/null || true
-        cp -a /usr/lib/x86_64-linux-gnu/libfaad.so*     AppDir/usr/lib/ 2>/dev/null || true
-
-        # Qt plugins from installer
-        for plugin in platforms imageformats multimedia xcbglintegrations \
-                      wayland-graphics-integration-client wayland-decoration-client \
-                      wayland-shell-integration platformthemes; do
-          cp -a $QT_INSTALL_PLUGINS/$plugin AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
-        done
-
-        # styles — try Qt installer first, then system Qt
-        if [ -d "$QT_INSTALL_PLUGINS/styles" ]; then
-          cp -a $QT_INSTALL_PLUGINS/styles AppDir/usr/lib/qt6/plugins/
-          echo "styles: copied from Qt installer"
-        else
-          find /usr/lib -path "*/qt6/plugins/styles" -type d 2>/dev/null | \
-            xargs -I{} cp -a {} AppDir/usr/lib/qt6/plugins/ 2>/dev/null || true
-          echo "styles: copied from system Qt (or not found)"
-        fi
-        ls AppDir/usr/lib/qt6/plugins/styles/ 2>/dev/null || echo "WARNING: styles plugin missing"
-
-        # Wayland platform plugins from system qt6-wayland
-        find /usr/lib -name 'libqwayland-egl.so' -o -name 'libqwayland-generic.so' 2>/dev/null | \
-          xargs -I{} cp {} AppDir/usr/lib/qt6/plugins/platforms/ 2>/dev/null || true
-
-    - name: Create AppRun
+    - name: Build the AppImage
+      env:
+        EXTRA_PLATFORM_PLUGINS: libqwayland-egl.so;libqwayland-generic.so
+        EXTRA_QT_PLUGINS: waylandcompositor
+        QMAKE: /usr/lib/qt6/bin/qmake
       run: |
-        printf '#!/bin/bash\nSELF=$(readlink -f "$0")\nHERE=$(dirname "$SELF")\nexport QT_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"\nexport LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"\nexec "$HERE/usr/bin/melonDS" "$@"\n' > AppDir/AppRun
-        chmod +x AppDir/AppRun
-
-    - name: Copy desktop file and icon
-      run: |
-        cp AppDir/usr/share/applications/net.kuribo64.melonDS.desktop AppDir/
-        cp AppDir/usr/share/icons/hicolor/256x256/apps/net.kuribo64.melonDS.png AppDir/
-
-    - name: Fetch appimagetool
-      run: |
-        wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
-        chmod +x appimagetool
-
-    - name: Build AppImage
-      run: ./appimagetool AppDir melonDS-x86_64.AppImage
+        ./linuxdeploy-${{ matrix.arch.name }}.AppImage --appdir AppDir --plugin qt --output appimage
 
     - uses: actions/upload-artifact@v4
       with:
-        name: melonDS-appimage-x86_64
+        name: melonDS-appimage-${{ matrix.arch.name }}
         path: melonDS*.AppImage
