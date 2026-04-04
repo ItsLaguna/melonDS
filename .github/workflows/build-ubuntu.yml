@@ -20,31 +20,38 @@ env:
 jobs:
   build:
     continue-on-error: true
-    strategy:
-      matrix:
-        arch:
-          - runner: ubuntu-24.04
-            name: x86_64
-          - runner: ubuntu-24.04-arm
-            name: aarch64
-
-    name: ${{ matrix.arch.name }}
-    runs-on: ${{ matrix.arch.runner }}
+    name: x86_64
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v4
       name: Check out sources
 
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
         sudo apt update
-        sudo apt install --allow-downgrades cmake extra-cmake-modules \
-          libcurl4-gnutls-dev libpcap0.8-dev libsdl2-dev libarchive-dev \
-          libenet-dev libzstd-dev libfaad-dev libfuse2 \
-          qt6-{base,base-private,multimedia,svg}-dev qt6-wayland
+        sudo apt install --allow-downgrades cmake ninja-build extra-cmake-modules \
+          libcurl4-gnutls-dev libpcap0.8-dev libsdl2-dev libenet-dev \
+          libarchive-dev libzstd-dev libfaad-dev libfuse2 \
+          libwayland-dev wayland-protocols \
+          libgl1-mesa-dev libegl1-mesa-dev \
+          libxkbcommon-dev libxkbcommon-x11-dev \
+          libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev \
+          libxcb-randr0-dev libxcb-render-util0-dev libxcb-shape0-dev \
+          libxcb-xinerama0-dev libxcb-xfixes0-dev qt6-wayland
+
+    - name: Install Qt 6.10.2
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: '6.10.2'
+        host: linux
+        target: desktop
+        arch: linux_gcc_64
+        modules: 'qtmultimedia qtsvg'
+        cache: true
 
     - name: Configure
-      run: cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX=/usr -DMELONDS_EMBED_BUILD_INFO=ON
+      run: cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX=/usr -DMELONDS_EMBED_BUILD_INFO=ON -DCMAKE_PREFIX_PATH=$QT_ROOT_DIR
 
     - name: Build
       run: |
@@ -53,24 +60,24 @@ jobs:
 
     - uses: actions/upload-artifact@v4
       with:
-        name: melonDS-ubuntu-${{ matrix.arch.name }}
+        name: melonDS-ubuntu-x86_64
         path: AppDir/usr/bin/melonDS
 
     - name: Fetch AppImage tools
       run: |
-        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.arch.name }}.AppImage
-        wget https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${{ matrix.arch.name }}.AppImage
+        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        wget https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
         chmod a+x linuxdeploy-*.AppImage
 
     - name: Build the AppImage
       env:
         EXTRA_PLATFORM_PLUGINS: libqwayland-egl.so;libqwayland-generic.so
         EXTRA_QT_PLUGINS: waylandcompositor
-        QMAKE: /usr/lib/qt6/bin/qmake
+        QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake6
       run: |
-        ./linuxdeploy-${{ matrix.arch.name }}.AppImage --appdir AppDir --plugin qt --output appimage
+        ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt --output appimage
 
     - uses: actions/upload-artifact@v4
       with:
-        name: melonDS-appimage-${{ matrix.arch.name }}
+        name: melonDS-appimage-x86_64
         path: melonDS*.AppImage
