@@ -74,6 +74,8 @@ jobs:
         QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake6
       run: |
         ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt --output appimage
+        # Remove system Qt 6.2 ICU libs - only Qt 6.10.2 ICU (.73) should be present
+        rm -f AppDir/usr/lib/libicudata.so.70* AppDir/usr/lib/libicuuc.so.70* AppDir/usr/lib/libicui18n.so.70*
 
     - uses: actions/upload-artifact@v4
       with:
