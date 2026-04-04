@@ -71,8 +71,6 @@ jobs:
 
     - name: Build the AppImage
       env:
-        EXTRA_PLATFORM_PLUGINS: libqwayland-egl.so;libqwayland-generic.so
-        EXTRA_QT_PLUGINS: waylandcompositor
         QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake6
       run: |
         ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt --output appimage
