@@ -63,19 +63,52 @@ jobs:
         name: melonDS-ubuntu-x86_64
         path: AppDir/usr/bin/melonDS
 
-    - name: Fetch AppImage tools
+    - name: Bundle libraries and plugins
       run: |
-        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-        wget https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-        chmod a+x linuxdeploy-*.AppImage
+        set -e
+        QT_LIB=$QT_ROOT_DIR/lib
+        QT_PLUGINS=$QT_ROOT_DIR/plugins
 
-    - name: Build the AppImage
-      env:
-        QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake6
+        mkdir -p AppDir/usr/lib AppDir/usr/lib/qt6/plugins
+
+        # Qt libraries - exactly matching manual build
+        for lib in Core Gui Widgets Network Multimedia OpenGL OpenGLWidgets Svg; do
+          cp -a $QT_LIB/libQt6${lib}.so* AppDir/usr/lib/
+        done
+
+        # ICU from Qt installer only - no system ICU
+        cp -a $QT_LIB/libicui18n.so.73* AppDir/usr/lib/
+        cp -a $QT_LIB/libicuuc.so.73*   AppDir/usr/lib/
+        cp -a $QT_LIB/libicudata.so.73* AppDir/usr/lib/
+
+        # System libs matching manual build
+        cp -a /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so* AppDir/usr/lib/ 2>/dev/null || true
+        cp -a /usr/lib/x86_64-linux-gnu/libarchive.so*  AppDir/usr/lib/ 2>/dev/null || true
+        cp -a /usr/lib/x86_64-linux-gnu/libzstd.so*     AppDir/usr/lib/ 2>/dev/null || true
+        cp -a /usr/lib/x86_64-linux-gnu/libfaad.so*     AppDir/usr/lib/ 2>/dev/null || true
+
+        # Qt plugins - matching manual build structure
+        cp -a $QT_PLUGINS/platforms    AppDir/usr/lib/qt6/plugins/
+        cp -a $QT_PLUGINS/imageformats AppDir/usr/lib/qt6/plugins/
+        cp -a $QT_PLUGINS/multimedia   AppDir/usr/lib/qt6/plugins/
+
+    - name: Create AppRun
       run: |
-        ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt --output appimage
-        # Remove system Qt 6.2 ICU libs - only Qt 6.10.2 ICU (.73) should be present
-        rm -f AppDir/usr/lib/libicudata.so.70* AppDir/usr/lib/libicuuc.so.70* AppDir/usr/lib/libicui18n.so.70*
+        printf '#!/bin/bash\nSELF=$(readlink -f "$0")\nHERE=$(dirname "$SELF")\nexport QT_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"\nexport LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"\nexec "$HERE/usr/bin/melonDS" "$@"\n' > AppDir/AppRun
+        chmod +x AppDir/AppRun
+
+    - name: Copy desktop file and icon
+      run: |
+        cp AppDir/usr/share/applications/net.kuribo64.melonDS.desktop AppDir/
+        cp AppDir/usr/share/icons/hicolor/256x256/apps/net.kuribo64.melonDS.png AppDir/
+
+    - name: Fetch appimagetool
+      run: |
+        wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+        chmod +x appimagetool
+
+    - name: Build AppImage
+      run: ./appimagetool AppDir melonDS-x86_64.AppImage
 
     - uses: actions/upload-artifact@v4
       with:
