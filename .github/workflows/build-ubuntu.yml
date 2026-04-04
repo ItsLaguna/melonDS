@@ -47,7 +47,7 @@ jobs:
         host: linux
         target: desktop
         arch: linux_gcc_64
-        modules: 'qtmultimedia qtsvg'
+        modules: 'qtmultimedia'
         cache: true
 
     - name: Configure
