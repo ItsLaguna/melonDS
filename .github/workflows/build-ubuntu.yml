@@ -51,7 +51,7 @@ jobs:
         cache: true
 
     - name: Configure
-      run: cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX=/usr -DMELONDS_EMBED_BUILD_INFO=ON -DCMAKE_PREFIX_PATH=$QT_ROOT_DIR
+      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DMELONDS_EMBED_BUILD_INFO=ON -DCMAKE_PREFIX_PATH=$QT_ROOT_DIR
 
     - name: Build
       run: |
@@ -91,6 +91,11 @@ jobs:
         cp -a $QT_PLUGINS/platforms    AppDir/usr/lib/qt6/plugins/
         cp -a $QT_PLUGINS/imageformats AppDir/usr/lib/qt6/plugins/
         cp -a $QT_PLUGINS/multimedia   AppDir/usr/lib/qt6/plugins/
+
+        # Wayland runtime libs needed by libqwayland.so
+        cp -a /usr/lib/x86_64-linux-gnu/libwayland-client.so* AppDir/usr/lib/ 2>/dev/null || true
+        cp -a /usr/lib/x86_64-linux-gnu/libwayland-cursor.so* AppDir/usr/lib/ 2>/dev/null || true
+        cp -a /usr/lib/x86_64-linux-gnu/libwayland-egl.so*    AppDir/usr/lib/ 2>/dev/null || true
 
     - name: Create AppRun
       run: |
