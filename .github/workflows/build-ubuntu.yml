@@ -72,8 +72,8 @@ jobs:
         mkdir -p AppDir/usr/lib AppDir/usr/lib/qt6/plugins
 
         # Qt libraries - exactly matching manual build
-        for lib in Core Gui Widgets Network Multimedia OpenGL OpenGLWidgets Svg; do
-          cp -a $QT_LIB/libQt6${lib}.so* AppDir/usr/lib/
+        for lib in Core Gui Widgets Network Multimedia OpenGL OpenGLWidgets Svg DBus XcbQpa; do
+          cp -a $QT_LIB/libQt6${lib}.so* AppDir/usr/lib/ 2>/dev/null || true
         done
 
         # ICU from Qt installer only - no system ICU
@@ -94,7 +94,7 @@ jobs:
 
     - name: Create AppRun
       run: |
-        printf '#!/bin/bash\nSELF=$(readlink -f "$0")\nHERE=$(dirname "$SELF")\nexport QT_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"\nexport LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"\nexec "$HERE/usr/bin/melonDS" "$@"\n' > AppDir/AppRun
+        printf '#!/bin/bash\nSELF=$(readlink -f "$0")\nHERE=$(dirname "$SELF")\nexport QT_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins"\nexport LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"\nexport QT_QPA_PLATFORM_PLUGIN_PATH="$HERE/usr/lib/qt6/plugins/platforms"\nexec "$HERE/usr/bin/melonDS" "$@"\n' > AppDir/AppRun
         chmod +x AppDir/AppRun
 
     - name: Copy desktop file and icon
