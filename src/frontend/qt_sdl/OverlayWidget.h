@@ -37,7 +37,7 @@ class OverlayWidget : public QWidget
 
 public:
     explicit OverlayWidget(MainWindow* mainWin, QWidget* container, EmuInstance* inst);
-    ~OverlayWidget() = default;
+    ~OverlayWidget();
 
     void open();
     void close();
@@ -96,6 +96,8 @@ private:
     // Direct pointers for updateGamePageState
     QPushButton*         m_insertGBABtn  = nullptr;
     QList<QPushButton*>  m_gbaAddonBtns;
+    QList<QPushButton*>  m_saveSlotBtns;
+    QList<QPushButton*>  m_loadSlotBtns;
 
     QPropertyAnimation*     m_panelAnim     = nullptr;
     QGraphicsOpacityEffect* m_opacityEffect = nullptr;

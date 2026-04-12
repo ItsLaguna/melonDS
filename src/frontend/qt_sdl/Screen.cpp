@@ -1263,6 +1263,23 @@ void ScreenPanelGL::drawScreen()
         osdMutex.unlock();
     }
 
+    // Capture the back buffer before SwapBuffers if requested.
+    if (m_captureRequested.exchange(false))
+    {
+        int w = windowInfo.surface_width;
+        int h = windowInfo.surface_height;
+        if (w > 0 && h > 0)
+        {
+            QImage img(w, h, QImage::Format_RGBA8888);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glReadBuffer(GL_BACK);
+            glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, img.bits());
+            QMutexLocker lock(&m_lastFrameMutex);
+            // GL origin is bottom-left; Qt origin is top-left
+            m_lastFrame = img.flipped(Qt::Vertical);
+        }
+    }
+
     glContext->SwapBuffers();
 }
 
@@ -1357,6 +1374,13 @@ std::optional<WindowInfo> ScreenPanelGL::getWindowInfo()
     return wi;
 }
 
+
+QImage ScreenPanelGL::grabLastFrame()
+{
+    QMutexLocker lock(&m_lastFrameMutex);
+    if (m_lastFrame.isNull()) return QImage();
+    return m_lastFrame.scaled(size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+}
 
 QPaintEngine* ScreenPanelGL::paintEngine() const
 {

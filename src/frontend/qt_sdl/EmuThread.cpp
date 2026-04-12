@@ -194,7 +194,14 @@ void EmuThread::run()
         if (emuInstance->hotkeyPressed(HK_SwapScreens)) emit swapScreensToggle();
         if (emuInstance->hotkeyPressed(HK_SwapScreenEmphasis)) emit screenEmphasisToggle();
         if (emuInstance->hotkeyPressed(HK_Quit)) emit windowQuit();
-        if (emuActive && emuInstance->hotkeyPressed(HK_Overlay)) emit windowOverlayToggle();
+        // Fire overlay toggle when emu is active (to open) OR when the overlay
+        // is already open (to close). This makes HK_Overlay a true toggle.
+        {
+            OverlayWidget* overlay = emuInstance->getMainWindow()->getOverlay();
+            bool overlayOpen = overlay && overlay->isOpen();
+            if ((emuActive || overlayOpen) && emuInstance->hotkeyPressed(HK_Overlay))
+                emit windowOverlayToggle();
+        }
 
         // Library nav — when no game running OR when overlay/library is visible.
         // Check m_overlay directly too since m_libraryVisible may not be set yet
