@@ -243,6 +243,11 @@ private:
     Config::Table& localCfg;
     Config::Table windowCfg;
 
+    // Debounce for GL context changes in video settings — accumulates glchange=true
+    // signals and fires onUpdateVideoSettings(true) once when dialog closes.
+    QTimer* m_videoSettingsTimer = nullptr;
+    bool m_pendingGLChange = false;
+
 public:
     ScreenPanel*       panel = nullptr;
 

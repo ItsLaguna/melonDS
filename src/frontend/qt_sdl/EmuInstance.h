@@ -163,6 +163,15 @@ public:
     bool inputHotkeyDown(int id) { return hotkeyDown(id); }
     float inputMotionQuery(melonDS::Platform::MotionQueryType type);
 
+    // Public wrappers used by OverlayWidget to forward key events for hotkey
+    // processing while the overlay is open (game buttons remain blocked by
+    // inputBlocked in inputProcess()).
+    void sendKeyPress(QKeyEvent* event) { onKeyPress(event); }
+    void sendKeyRelease(QKeyEvent* event) { onKeyRelease(event); }
+
+    // Public accessor for save state slot existence check (used by OverlayWidget).
+    bool slotHasSavestate(int slot) { return savestateExists(slot); }
+
     void setJoystick(int id);
     int getJoystickID() { return joystickID; }
     SDL_Joystick* getJoystick() { return joystick; }

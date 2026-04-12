@@ -958,7 +958,10 @@ void MainWindow::showScreenPanel()
         if (glpanel) glpanel->transferLayout();
     }
 
-    panel->setFocus();
+    // Don't steal focus if the overlay is open — setFocus() raises the native
+    // window and buries the overlay. The overlay already has focus in that case.
+    if (!(m_overlay && m_overlay->isOpen()))
+        panel->setFocus();
 }
 
 void MainWindow::destroyScreenPanel()
@@ -1522,22 +1525,40 @@ void MainWindow::onOverlayToggle()
     {
         bool wasRunning = emuThread->emuIsActive() && !actPause->isChecked();
 
+        // For GL: request a frame capture before pausing so the emu thread
+        // captures the back buffer on its next drawScreen() before SwapBuffers.
+        // This avoids context stealing — the capture happens on the emu thread
+        // while the context is still current there.
+        if (panel && hasOGL && wasRunning)
+            static_cast<ScreenPanelGL*>(panel)->requestFrameCapture();
+
+        // Always pause while overlay is open
+        if (wasRunning)
+            emuThread->emuPause();
+
+        // Grab the frozen frame BEFORE switching away from the panel.
+        if (panel && !hasOGL)
+            m_overlay->setFrozenFrame(panel->grab());
+        else if (panel && hasOGL && wasRunning)
+        {
+            QImage frame = static_cast<ScreenPanelGL*>(panel)->grabLastFrame();
+            qWarning() << "grabLastFrame size:" << frame.size() << "null?" << frame.isNull();
+            m_overlay->setFrozenFrame(QPixmap::fromImage(frame));
+        }
+        else if (m_panelContainer)
+            m_overlay->setFrozenFrame(m_panelContainer->grab());
+
         if (m_panelContainer && m_library)
         {
             m_panelContainer->setCurrentWidget(m_library);
             m_libraryVisible = true;
         }
 
-        // Always pause while overlay is open
-        if (wasRunning)
-            emuThread->emuPause();
-
         // didPauseGame = game was running when we opened,
         // so we should unpause it when we close (regardless of who paused it)
         m_overlay->setDidPauseGame(wasRunning);
         emuInstance->setInputBlocked(true);
         emuInstance->keyReleaseAll();
-        if (panel) m_overlay->setFrozenFrame(panel->grab());
         m_overlay->open();
     }
 }
@@ -1864,6 +1885,11 @@ void MainWindow::onImportSavefile()
         QMessageBox::critical(this, "melonDS", "Could not import the given savefile.");
         return;
     }
+
+    // Import succeeded — if the overlay is open, close it and resume so the
+    // player sees the game reset cleanly rather than returning to the overlay.
+    if (m_overlay && m_overlay->isOpen())
+        onOverlayResume();
 }
 
 void MainWindow::onQuit()
@@ -2552,12 +2578,22 @@ void MainWindow::onUpdateVideoSettings(bool glchange)
 
     auto childwins = findChildren<MainWindow *>(nullptr);
 
+    // If the overlay is open it already called emuPause(), incrementing
+    // emuPauseStack to 1. Calling emuPause() again here increments it to 2,
+    // and emuUnpause() at the end brings it back to 1 — the overlay's pause
+    // remains in effect until onOverlayResume calls emuUnpause(). This is the
+    // correct nested pause behaviour; do NOT skip emuPause/emuUnpause here.
+    bool overlayWasOpen = m_overlay && m_overlay->isOpen();
+
     bool hadOGL = hasOGL;
     if (glchange)
     {
         // Suppress all repaints for the duration of the GL context switch
         setUpdatesEnabled(false);
 
+        // Always pause — emuPauseStack handles nested pauses correctly.
+        // If overlay is open it already paused (stack=1); this brings it to 2.
+        // emuUnpause below brings it back to 1, and onOverlayResume to 0.
         emuThread->emuPause();
 
         // Cancel any pending deferred library switch from onEmuStop — we're
@@ -2578,6 +2614,17 @@ void MainWindow::onUpdateVideoSettings(bool glchange)
         createScreenPanel();
         for (auto child: childwins)
             child->createScreenPanel();
+
+        // Re-parent overlay to new panel container if needed and keep it on top.
+        if (overlayWasOpen && m_overlay)
+        {
+            if (m_overlay->parentWidget() != m_panelContainer)
+            {
+                m_overlay->setParent(m_panelContainer);
+                m_overlay->setGeometry(m_panelContainer->rect());
+            }
+            m_overlay->raise();
+        }
     }
 
     emuThread->updateVideoSettings();
@@ -2600,16 +2647,49 @@ void MainWindow::onUpdateVideoSettings(bool glchange)
             }
         }
 
-        // GL context is ready — show the panel now so the first rendered
-        // frame is correct and there is no flicker.
         if (emuThread->emuIsActive())
         {
-            showScreenPanel();
-            for (auto child: childwins)
-                child->showScreenPanel();
+            if (overlayWasOpen)
+            {
+                // Overlay is open: insert the panel into the stack and show it
+                // so it's ready for when the overlay closes, but don't switch
+                // to it or focus it — that would set m_libraryVisible=false and
+                // cause the emu thread to render while overlay is still open,
+                // resulting in a black screen on resume.
+                if (panel && m_panelContainer && m_panelContainer->indexOf(panel) < 0)
+                    m_panelContainer->insertWidget(0, panel);
+                if (panel) panel->show();
+                // Emit screenLayoutChange so the panel sets up its screen
+                // transforms correctly — without this GL renders black.
+                emit screenLayoutChange();
+                if (hasOGL)
+                {
+                    ScreenPanelGL* glpanel = static_cast<ScreenPanelGL*>(panel);
+                    if (glpanel) glpanel->transferLayout();
+                }
+                // Restore the library as current so the overlay sits correctly.
+                if (m_panelContainer && m_library)
+                    m_panelContainer->setCurrentWidget(m_library);
+                m_libraryVisible = true;
+            }
+            else
+            {
+                showScreenPanel();
+                for (auto child: childwins)
+                    child->showScreenPanel();
+            }
         }
 
+        // Always unpause to balance the emuPause above.
         emuThread->emuUnpause();
+
         setUpdatesEnabled(true);
+
+        // Re-raise the overlay if it was open.
+        if (overlayWasOpen && m_overlay)
+        {
+            m_overlay->raise();
+            m_overlay->repaint();
+        }
     }
 }

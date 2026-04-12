@@ -22,6 +22,7 @@
 #include <optional>
 #include <deque>
 #include <map>
+#include <atomic>
 
 #include <QWidget>
 #include <QImage>
@@ -205,6 +206,13 @@ public:
     GL::Context* getContext() { return glContext.get(); }
 
     void transferLayout();
+
+    // Request a frame capture on the next drawScreen() call (emu thread).
+    // Call this before emuPause() so the capture happens on the last rendered
+    // frame before the emu stops. grabLastFrame() returns the result.
+    void requestFrameCapture() { m_captureRequested.store(true); }
+    QImage grabLastFrame();
+
 protected:
 
     qreal devicePixelRatioFromScreen() const;
@@ -228,6 +236,10 @@ private:
     WindowInfo windowInfo;
 
     int lastScreenWidth = -1, lastScreenHeight = -1;
+
+    std::atomic<bool> m_captureRequested {false};
+    QMutex m_lastFrameMutex;
+    QImage m_lastFrame;
 
     GLuint osdShader;
     GLint osdScreenSizeULoc, osdPosULoc, osdSizeULoc;

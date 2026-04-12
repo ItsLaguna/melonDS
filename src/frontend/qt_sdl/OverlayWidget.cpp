@@ -46,6 +46,7 @@
 #include <QSet>
 #include <algorithm>
 #include <QFrame>
+#include <QTimer>
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -115,12 +116,25 @@ static QCheckBox* makeMenuToggle(const QString& text)
 // OverlayWidget
 // ---------------------------------------------------------------------------
 
+OverlayWidget::~OverlayWidget()
+{
+    // Remove the app-level event filter installed in the constructor.
+    // Without this, Qt may call eventFilter() on a destroyed object during
+    // shutdown, causing a segfault.
+    qApp->removeEventFilter(this);
+}
+
 OverlayWidget::OverlayWidget(MainWindow* mainWin, QWidget* container, EmuInstance* inst)
 : QWidget(container)  // child of m_panelContainer, same level as the GL panel
 , m_mainWindow(mainWin)
 , m_emuInstance(inst)
 {
     setAttribute(Qt::WA_TransparentForMouseEvents, false);
+    // Tell Qt this widget always paints its entire surface, bypassing the
+    // backing store's occlusion-clipping logic. Without this, Fusion style
+    // causes Qt to subtract the QStackedWidget's current page rect from the
+    // overlay's flush region, leaving the center panel area unpainted on show().
+    setAttribute(Qt::WA_OpaquePaintEvent, true);
     setFocusPolicy(Qt::StrongFocus);
     // Fill the container
     setGeometry(container->rect());
@@ -140,18 +154,25 @@ void OverlayWidget::open()
     if (m_sidebar) m_sidebar->setCurrentRow(2);
     show();
     raise();
-    // Force repaint of the current page including its scroll area viewport
-    if (m_pages)
-    {
-        m_pages->repaint();
-        if (QWidget* page = m_pages->currentWidget())
+    // Schedule child repaints for after the event loop has processed our
+    // initial paint. Under Fusion style the children's flush regions are
+    // also occlusion-clipped on first show; deferring ensures they repaint
+    // into a clean backing store after OverlayWidget's own paint has flushed.
+    QTimer::singleShot(0, this, [this]() {
+        if (!m_open) return;
+        if (m_panel) m_panel->repaint();
+        if (m_pages)
         {
-            page->repaint();
-            // Repaint all children (including QScrollArea viewport)
-            for (QObject* obj : page->findChildren<QWidget*>())
-                static_cast<QWidget*>(obj)->repaint();
+            m_pages->repaint();
+            if (QWidget* page = m_pages->currentWidget())
+            {
+                page->repaint();
+                for (QObject* obj : page->findChildren<QWidget*>())
+                    static_cast<QWidget*>(obj)->repaint();
+            }
         }
-    }
+        if (m_sidebar) m_sidebar->repaint();
+    });
     m_sidebar->setFocus();
     animateIn();
 }
@@ -172,12 +193,14 @@ void OverlayWidget::reposition()
 
 void OverlayWidget::setFrozenFrame(const QPixmap& px)
 {
+    qWarning() << "setFrozenFrame size:" << px.size() << "null?" << px.isNull();
     m_frozenFrame = px;
     update();
 }
 
 void OverlayWidget::paintEvent(QPaintEvent*)
 {
+    qWarning() << "paintEvent frozenFrame null?" << m_frozenFrame.isNull() << "size:" << m_frozenFrame.size() << "widget size:" << size();
     QPainter p(this);
     bool isDark = (QApplication::palette().color(QPalette::Window).lightness() < 128);
     // Fill solid first to prevent GL/bugged graphics bleeding through
@@ -225,10 +248,23 @@ bool OverlayWidget::eventFilter(QObject* obj, QEvent* event)
         {
             QKeyEvent* ke = static_cast<QKeyEvent*>(event);
             if (!ke->isAutoRepeat())
+            {
+                // Forward to emuInstance for hotkey processing (e.g. HK_Overlay
+                // to close, HK_Pause etc.). Game buttons are blocked separately
+                // by inputBlocked in inputProcess(), so this is safe.
+                m_emuInstance->sendKeyPress(ke);
                 keyPressEvent(ke);
+            }
             return true;
         }
-        return true; // consume KeyRelease too
+        if (event->type() == QEvent::KeyRelease)
+        {
+            QKeyEvent* ke = static_cast<QKeyEvent*>(event);
+            if (!ke->isAutoRepeat())
+                m_emuInstance->sendKeyRelease(ke);
+            return true;
+        }
+        return true;
     }
     return false;
 }
@@ -380,6 +416,8 @@ QWidget* OverlayWidget::buildGamePage()
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setWidgetResizable(true);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setStyleSheet("QScrollArea { background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }");
+    scroll->viewport()->setAutoFillBackground(false);
 
     QWidget* w = new QWidget();
     QVBoxLayout* lay = new QVBoxLayout(w);
@@ -425,8 +463,6 @@ QWidget* OverlayWidget::buildGamePage()
 
     QPushButton* importSave = makeMenuBtn("Import Savefile...");
     connect(importSave, &QPushButton::clicked, this, [this]() {
-        // Don't close the overlay — the dialog handles its own flow and the
-        // game may reset internally. Just trigger it with the overlay still open.
         m_mainWindow->actImportSavefile->trigger();
     });
     lay->addWidget(importSave);
@@ -450,6 +486,7 @@ QWidget* OverlayWidget::buildGamePage()
                 m_mainWindow->actSaveState[i]->trigger();
                 close();
             });
+            m_saveSlotBtns.append(btn);
             row->addWidget(btn);
         }
         row->addStretch();
@@ -475,6 +512,7 @@ QWidget* OverlayWidget::buildGamePage()
                 m_mainWindow->actLoadState[i]->trigger();
                 close();
             });
+            m_loadSlotBtns.append(btn);
             row->addWidget(btn);
         }
         row->addStretch();
@@ -530,6 +568,8 @@ QWidget* OverlayWidget::buildSystemPage()
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setWidgetResizable(true);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setStyleSheet("QScrollArea { background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }");
+    scroll->viewport()->setAutoFillBackground(false);
 
     QWidget* w = new QWidget();
     QVBoxLayout* lay = new QVBoxLayout(w);
@@ -575,6 +615,8 @@ QWidget* OverlayWidget::buildViewPage()
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setWidgetResizable(true);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setStyleSheet("QScrollArea { background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }");
+    scroll->viewport()->setAutoFillBackground(false);
 
     QWidget* w = new QWidget();
     QVBoxLayout* lay = new QVBoxLayout(w);
@@ -702,6 +744,8 @@ QWidget* OverlayWidget::buildConfigPage()
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setWidgetResizable(true);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setStyleSheet("QScrollArea { background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }");
+    scroll->viewport()->setAutoFillBackground(false);
 
     QWidget* w = new QWidget();
     QVBoxLayout* lay = new QVBoxLayout(w);
@@ -790,6 +834,28 @@ void OverlayWidget::updateGamePageState()
         m_gbaAddonBtns[i]->setText(active ? "✓  " + act->text() : act->text());
     }
 
+    // Save/Load state slot indicators — tint slots that have a save file.
+    // Use #666666 at 75% opacity (rgba 102,102,102,191) matching the section
+    // label color, so filled slots are visually distinct at a glance.
+    static const QString slotFilledStyle =
+        "QPushButton { border-radius: 5px; font-weight: bold; background: rgba(102,102,102,191); }"
+        "QPushButton:hover { background: palette(highlight); color: palette(highlighted-text); }"
+        "QPushButton:focus { background: palette(highlight); color: palette(highlighted-text); outline: none; }";
+    static const QString slotEmptyStyle =
+        "QPushButton { border-radius: 5px; font-weight: bold; }"
+        "QPushButton:hover { background: palette(highlight); color: palette(highlighted-text); }"
+        "QPushButton:focus { background: palette(highlight); color: palette(highlighted-text); outline: none; }";
+
+    for (int i = 0; i < m_saveSlotBtns.size(); i++)
+    {
+        bool exists = m_emuInstance->slotHasSavestate(i + 1);
+        m_saveSlotBtns[i]->setStyleSheet(exists ? slotFilledStyle : slotEmptyStyle);
+    }
+    for (int i = 0; i < m_loadSlotBtns.size(); i++)
+    {
+        bool exists = m_emuInstance->slotHasSavestate(i + 1);
+        m_loadSlotBtns[i]->setStyleSheet(exists ? slotFilledStyle : slotEmptyStyle);
+    }
 }
 
 void OverlayWidget::updateConfigPageState()
