@@ -1842,16 +1842,33 @@ void MainWindow::onImportSavefile()
         }
     }
 
+    // User confirmed — close the overlay and clear pause state before the
+    // import+reset runs, so the game resumes cleanly afterward.
+    bool hadOverlay = m_overlay && m_overlay->isOpen();
+    if (hadOverlay)
+    {
+        // Close the overlay visually and restore the panel, then unpause.
+        // We set didPauseGame=false first so the closed() signal's
+        // onOverlayResume handler doesn't call emuUnpause a second time.
+        m_overlay->setDidPauseGame(false);
+        m_overlay->close();
+        emuInstance->setInputBlocked(false);
+        if (panel && m_panelContainer)
+        {
+            m_panelContainer->setCurrentWidget(panel);
+            m_libraryVisible = false;
+        }
+        if (panel) panel->setFocus();
+        // Unpause the emu — the overlay had called emuPause() when it opened,
+        // so we must balance that here since onOverlayResume won't.
+        emuThread->emuUnpause();
+    }
+
     if (!emuThread->importSavefile(path))
     {
         QMessageBox::critical(this, "melonDS", "Could not import the given savefile.");
         return;
     }
-
-    // Import succeeded — if the overlay is open, close it and resume so the
-    // player sees the game reset cleanly rather than returning to the overlay.
-    if (m_overlay && m_overlay->isOpen())
-        onOverlayResume();
 }
 
 void MainWindow::onQuit()
@@ -2618,14 +2635,13 @@ void MainWindow::onUpdateVideoSettings(bool glchange)
         {
             if (overlayWasOpen)
             {
-                // Overlay is open: insert the panel into the stack and show it
-                // so it's ready for when the overlay closes, but don't switch
-                // to it or focus it — that would set m_libraryVisible=false and
-                // cause the emu thread to render while overlay is still open,
-                // resulting in a black screen on resume.
+                // Overlay is open: insert the panel into the stack so it's
+                // ready for when the overlay closes, but do NOT call show() —
+                // on Windows this briefly makes the native GL surface visible
+                // as a child window in the corner before the stack hides it.
+                // setCurrentWidget() in onOverlayResume will show it correctly.
                 if (panel && m_panelContainer && m_panelContainer->indexOf(panel) < 0)
                     m_panelContainer->insertWidget(0, panel);
-                if (panel) panel->show();
                 // Emit screenLayoutChange so the panel sets up its screen
                 // transforms correctly — without this GL renders black.
                 emit screenLayoutChange();
