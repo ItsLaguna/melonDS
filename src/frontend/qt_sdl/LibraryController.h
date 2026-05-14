@@ -136,4 +136,5 @@ private:
     QStringList            m_recentlyPlayed;
 
     QSet<QString>          m_knownPaths;
+    QTimer*                m_headerSaveTimer = nullptr;
 };

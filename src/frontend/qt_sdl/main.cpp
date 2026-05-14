@@ -424,11 +424,25 @@ int main(int argc, char** argv)
                 QApplication::setStyle(uitheme);
             }
         }
+#ifdef _WIN32
+        else
+        {
+            // On Windows with no explicit UITheme, the native Windows style
+            // honours the system dark palette set by darkmode=2 at the pixel
+            // level but many Qt widgets still render with a light background.
+            // Switching to Fusion lets Qt fully respect the system palette
+            // including dark mode, giving consistent results.
+            QPalette sysPalette = QApplication::palette();
+            bool systemIsDark = sysPalette.color(QPalette::Window).lightness() < 128;
+            if (systemIsDark)
+                QApplication::setStyle("fusion");
+        }
+#endif
     }
 
     // fix for Wayland OpenGL glitches
-    QGuiApplication::setAttribute(Qt::AA_NativeWindows, false);
-    QGuiApplication::setAttribute(Qt::AA_DontCreateNativeWidgetSiblings, true);
+    //QGuiApplication::setAttribute(Qt::AA_NativeWindows, false);
+    //QGuiApplication::setAttribute(Qt::AA_DontCreateNativeWidgetSiblings, true);
 
     // default MP interface type is local MP
     // this will be changed if a LAN or netplay session is initiated

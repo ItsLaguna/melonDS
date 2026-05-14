@@ -134,6 +134,10 @@ LibraryController::LibraryController(MainWindow* mainWindow,
     m_listView->setIconSize(QSize(24, 24));
     m_listView->header()->setSectionsMovable(true);
     m_listView->header()->setContextMenuPolicy(Qt::CustomContextMenu);
+    // Last visible column stretches to fill remaining space — prevents the
+    // user from resizing it inward past the viewport and creating a scrollbar.
+    m_listView->header()->setStretchLastSection(true);
+    m_listView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_listView->setAutoFillBackground(false);
     m_listView->viewport()->setAutoFillBackground(false);
     connect(m_listView->header(), &QHeaderView::customContextMenuRequested,
@@ -323,11 +327,16 @@ void LibraryController::restoreColumnVisibility()
         m_listView->setColumnHidden(melonds::LibraryModel::COL_SIZE,         false);
         m_listView->setColumnHidden(melonds::LibraryModel::COL_CRC,          true);
         m_listView->setColumnHidden(melonds::LibraryModel::COL_LOCATION,     true);
+        m_listView->header()->setStretchLastSection(true);
         return;
     }
 
     const QByteArray state = QByteArray::fromBase64(b64.toLatin1());
     m_listView->header()->restoreState(state);
+
+    // restoreState() serialises the stretch flag too — re-apply it so a
+    // saved state from before this change doesn't re-enable the scrollbar.
+    m_listView->header()->setStretchLastSection(true);
 
     // COL_NAME must always be visible regardless of saved state
     m_listView->setColumnHidden(melonds::LibraryModel::COL_NAME, false);
@@ -342,10 +351,22 @@ void LibraryController::restoreColumnVisibility()
 // Save whenever the user resizes or reorders columns
 void LibraryController::connectHeaderSave()
 {
+    // Debounce header saves — sectionResized fires on every pixel during a
+    // drag, which without debouncing calls Config::Save() hundreds of times
+    // per second and causes severe lag on Windows. Use a 400ms single-shot
+    // timer so we only write once the user stops dragging.
+    if (!m_headerSaveTimer)
+    {
+        m_headerSaveTimer = new QTimer(this);
+        m_headerSaveTimer->setSingleShot(true);
+        m_headerSaveTimer->setInterval(400);
+        connect(m_headerSaveTimer, &QTimer::timeout,
+                this, &LibraryController::saveColumnVisibility);
+    }
     connect(m_listView->header(), &QHeaderView::sectionResized,
-            this, [this](int, int, int) { saveColumnVisibility(); });
+            this, [this](int, int, int) { m_headerSaveTimer->start(); });
     connect(m_listView->header(), &QHeaderView::sectionMoved,
-            this, [this](int, int, int) { saveColumnVisibility(); });
+            this, [this](int, int, int) { m_headerSaveTimer->start(); });
     connect(m_listView->header(), &QHeaderView::sortIndicatorChanged,
             this, [this](int, Qt::SortOrder) { saveColumnVisibility(); });
 }

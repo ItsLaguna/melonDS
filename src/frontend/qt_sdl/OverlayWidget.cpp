@@ -349,7 +349,7 @@ void OverlayWidget::buildUI()
         );
     }
     // Row 0: Resume
-    { QListWidgetItem* it = new QListWidgetItem("▶  Resume");
+    { QListWidgetItem* it = new QListWidgetItem("Resume");
       it->setTextAlignment(Qt::AlignVCenter|Qt::AlignLeft);
       QFont f=it->font(); f.setBold(true); it->setFont(f);
       m_sidebar->addItem(it); }
@@ -371,11 +371,11 @@ void OverlayWidget::buildUI()
       sep->setBackground(QColor(isDark_ ? "#888888" : "#666666")); }
       m_sidebar->addItem(sep); }
     // Row 7: Quit to Library
-    { QListWidgetItem* it = new QListWidgetItem("⏏  Quit to Library");
+    { QListWidgetItem* it = new QListWidgetItem("Quit to Library");
       it->setTextAlignment(Qt::AlignVCenter|Qt::AlignLeft);
       m_sidebar->addItem(it); }
     // Row 8: Quit melonDS
-    { QListWidgetItem* it = new QListWidgetItem("✕  Quit melonDS");
+    { QListWidgetItem* it = new QListWidgetItem("Quit melonDS");
       it->setTextAlignment(Qt::AlignVCenter|Qt::AlignLeft);
       it->setForeground(QApplication::palette().color(QPalette::Link));
       m_sidebar->addItem(it); }
