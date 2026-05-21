@@ -1154,11 +1154,6 @@ void ScreenPanelGL::drawScreen()
 
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D_ARRAY, texid);
-
-            // Ensure all GL renderer FBO writes to this texture are complete
-            // before we sample it. Without this, Qt 6.4+ EGL context state
-            // management can leave the bottom portion of the texture with
-            // stale data from a previous frame during display capture.
             glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
         }
 
