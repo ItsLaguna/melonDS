@@ -879,12 +879,6 @@ void GLRenderer::SyncVRAMCapture(u32 bank, u32 start, u32 len, bool complete)
 
         glBindFramebuffer(GL_READ_FRAMEBUFFER, CaptureSyncFB);
 
-        // Ensure the downscale render is fully complete before reading back.
-        // Without this, on newer Mesa/Qt versions glReadPixels can return stale
-        // data from the previous frame, causing cutscene display artifacts when
-        // the captured pixels are subsequently read by DrawScanline into AuxInputBuffer.
-        glFlush();
-
         glReadPixels(0, 0, 128, 128,
                      GL_RGBA, GL_UNSIGNED_SHORT_1_5_5_5_REV, &vram[start * 64 * 512]);
 
@@ -896,9 +890,6 @@ void GLRenderer::SyncVRAMCapture(u32 bank, u32 start, u32 len, bool complete)
         DownscaleCapture(256, 256, bank);
 
         glBindFramebuffer(GL_READ_FRAMEBUFFER, CaptureSyncFB);
-
-        // Same flush needed for the 256x256 path.
-        glFlush();
 
         u32 pos = start;
         for (u32 i = 0; i < len;)
