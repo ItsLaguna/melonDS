@@ -317,14 +317,16 @@ LibraryEntry LibraryModel::readNDSHeader(const QString& path)
                     // the game name from the developer name — we only want the first line.
                     auto readBannerTitle = [](const char16_t* field, int maxLen) -> QString
                     {
-                        // Find null terminator within bounds
                         int len = 0;
                         while (len < maxLen && field[len] != 0) ++len;
                         QString s = QString::fromUtf16(
                             reinterpret_cast<const char16_t*>(field), len);
-                        // Take only the first line (before developer name)
-                        const int nl = s.indexOf('\n');
-                        if (nl >= 0) s = s.left(nl);
+                        // The last line is always the developer name — strip it.
+                        // e.g. "KINGDOM HEARTS\n358/2 Days\nSQUARE ENIX" → "KINGDOM HEARTS\n358/2 Days"
+                        const int lastNl = s.lastIndexOf('\n');
+                        if (lastNl >= 0) s = s.left(lastNl);
+                        // Replace any remaining \n (subtitle separator) with ": "
+                        s.replace('\n', QLatin1String(": "));
                         return s.trimmed();
                     };
 
