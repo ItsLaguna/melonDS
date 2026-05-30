@@ -303,11 +303,53 @@ LibraryEntry LibraryModel::readNDSHeader(const QString& path)
             if (f2.open(QIODevice::ReadOnly) && f2.seek(bannerOffset))
             {
                 melonDS::NDSBanner banner;
-                const qint64 needed = offsetof(melonDS::NDSBanner, JapaneseTitle);
-                if (f2.read(reinterpret_cast<char*>(&banner), needed) >= needed)
+                // Read the full banner so we get both the icon and the title strings.
+                // NDSBanner is 9152 bytes; read as much as is available.
+                const qint64 needed = sizeof(melonDS::NDSBanner);
+                if (f2.read(reinterpret_cast<char*>(&banner), needed) >= static_cast<qint64>(offsetof(melonDS::NDSBanner, EnglishTitle) + sizeof(banner.EnglishTitle)))
+                {
                     e.icon = decodeNDSIcon(
                         reinterpret_cast<const quint8*>(banner.Icon),
                         reinterpret_cast<const quint16*>(banner.Palette));
+
+                    // Use the localized title from the banner.
+                    // EnglishTitle is UTF-16LE, up to 128 chars, with '\n' separating
+                    // the game name from the developer name — we only want the first line.
+                    auto readBannerTitle = [](const char16_t* field, int maxLen) -> QString
+                    {
+                        // Find null terminator within bounds
+                        int len = 0;
+                        while (len < maxLen && field[len] != 0) ++len;
+                        QString s = QString::fromUtf16(
+                            reinterpret_cast<const char16_t*>(field), len);
+                        // Take only the first line (before developer name)
+                        const int nl = s.indexOf('\n');
+                        if (nl >= 0) s = s.left(nl);
+                        return s.trimmed();
+                    };
+
+                    QString bannerTitle = readBannerTitle(banner.EnglishTitle, 128);
+                    if (bannerTitle.isEmpty())
+                        bannerTitle = readBannerTitle(banner.JapaneseTitle, 128);
+
+                    // Only override the header title if the banner gave us something better
+                    if (!bannerTitle.isEmpty())
+                        e.title = bannerTitle;
+                }
+                else
+                {
+                    // Banner too short for title strings — use icon only if we got that far
+                    const qint64 iconNeeded = offsetof(melonDS::NDSBanner, JapaneseTitle);
+                    QFile f3(path);
+                    if (f3.open(QIODevice::ReadOnly) && f3.seek(bannerOffset))
+                    {
+                        melonDS::NDSBanner b2;
+                        if (f3.read(reinterpret_cast<char*>(&b2), iconNeeded) >= iconNeeded)
+                            e.icon = decodeNDSIcon(
+                                reinterpret_cast<const quint8*>(b2.Icon),
+                                reinterpret_cast<const quint16*>(b2.Palette));
+                    }
+                }
             }
         }
     }

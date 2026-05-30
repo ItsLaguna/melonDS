@@ -79,6 +79,8 @@
 #include "AboutDialog.h"
 #include "LibraryController.h"
 #include "OverlayWidget.h"
+#include "DiscordPresence.h"
+#include "DiscordPresenceDialog.h"
 
 using namespace melonDS;
 
@@ -621,6 +623,15 @@ focused(true)
 
             actPathSettings = menu->addAction("Path settings");
             connect(actPathSettings, &QAction::triggered, this, &MainWindow::onOpenPathSettings);
+
+            menu->addSeparator();
+
+            QAction* actDiscordPresence = menu->addAction("Discord Presence...");
+            connect(actDiscordPresence, &QAction::triggered, this, [this]()
+            {
+                DiscordPresenceDialog dlg(this);
+                dlg.exec();
+            });
 
             menu->addSeparator();
 
@@ -2497,6 +2508,7 @@ void MainWindow::onEmuStart()
 void MainWindow::onEmuStop()
 {
     if (!hasMenu) return;
+    DiscordPresence::get().clearROM();
 
     // Set m_libraryVisible immediately so the emu thread's paused loop stops
     // calling drawScreen/makeCurrentGL at once. If this is deferred, the emu

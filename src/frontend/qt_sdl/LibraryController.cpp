@@ -18,6 +18,7 @@
 
 #include "LibraryController.h"
 
+#include "DiscordPresence.h"
 #include "LibraryCoverManager.h"
 #include "LibraryGridDelegate.h"
 #include "LibraryModel.h"
@@ -200,6 +201,7 @@ LibraryController::LibraryController(MainWindow* mainWindow,
         const QString path = idx.data(melonds::LibraryModel::FullPathRole).toString();
         if (path.isEmpty() || !m_mainWindow) return;
         recordGameLaunched(path);
+        DiscordPresence::get().setROMLoaded(m_libraryModel->entry(path));
         m_mainWindow->preloadROMs(QStringList{path}, {}, true);
     };
     connect(m_listView, &QAbstractItemView::activated, this, onActivated);
@@ -637,6 +639,7 @@ void LibraryController::setupContextMenu(QAbstractItemView* view)
         {
             if (!m_mainWindow) return;
             recordGameLaunched(fullpath);
+            DiscordPresence::get().setROMLoaded(m_libraryModel->entry(fullpath));
             m_mainWindow->preloadROMs(QStringList{fullpath}, {}, true);
         });
 

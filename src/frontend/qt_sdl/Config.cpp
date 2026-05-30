@@ -112,13 +112,17 @@ DefaultList<bool> DefaultBools =
 #endif
     {"DSi.DSP.HLE", true},
     {"Instance*.RTC.SyncToHost", true},
+    {"DiscordPresence.Enabled",      true},
+    {"DiscordPresence.ShowGameCode", true},
 };
 
 DefaultList<std::string> DefaultStrings =
 {
     {"DLDI.ImagePath",                  "dldi.bin"},
     {"DSi.SD.ImagePath",                "dsisd.bin"},
-    {"Instance*.Firmware.Username",     "melonDS"}
+    {"Instance*.Firmware.Username",     "melonDS"},
+    {"DiscordPresence.AppID",           ""},
+    {"DiscordPresence.ArtType",         "cover|jpg"},
 };
 
 DefaultList<double> DefaultDoubles =
