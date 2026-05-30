@@ -65,6 +65,7 @@
 
 #include "Net_PCap.h"
 #include "Net_Slirp.h"
+#include "DiscordPresence.h"
 
 using namespace melonDS;
 
@@ -451,6 +452,7 @@ int main(int argc, char** argv)
     NetInit();
 
     createEmuInstance();
+    DiscordPresence::get().init();
 
     {
         MainWindow* win = emuInstances[0]->getMainWindow();
@@ -486,6 +488,7 @@ int main(int argc, char** argv)
 
     // if we get here, all the existing emu instances should have been deleted already
     // but with this we make extra sure they are all deleted
+    DiscordPresence::get().shutdown();
     deleteAllEmuInstances();
 
     delete camManager[0];
