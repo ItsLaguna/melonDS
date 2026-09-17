@@ -675,7 +675,6 @@ QWidget* OverlayWidget::buildViewPage()
 }
 
 // A row widget that highlights its background when any child has focus or mouse hover.
-// Used for RPCS3-style setting rows in the Config page.
 class HighlightRow : public QWidget
 {
 public:
