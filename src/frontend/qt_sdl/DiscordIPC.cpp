@@ -12,10 +12,7 @@
 #include <errno.h>
 #include <cstring>
 
-// ---------------------------------------------------------------------------
-// Socket path — Discord tries /run/user/<uid>/discord-ipc-0 through -9,
-// with fallbacks to $TMPDIR and /tmp.
-// ---------------------------------------------------------------------------
+// Socket path
 QByteArray DiscordIPC::socketPath() const
 {
     const QByteArray runtimeDir = qgetenv("XDG_RUNTIME_DIR");
